@@ -279,10 +279,44 @@ Provider note: OpenRouter mode is currently text-only in this app. The screen wa
   }
 
   const data = (await response.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+    error?: { message?: string; code?: string | number };
+    choices?: Array<{
+      finish_reason?: string;
+      message?: {
+        content?: string | Array<{ text?: string; type?: string }>;
+      };
+      text?: string;
+    }>;
   };
 
-  return data.choices?.[0]?.message?.content ?? "No answer was returned.";
+  if (data.error) {
+    throw new Error(`OpenRouter error: ${data.error.message ?? data.error.code ?? "unknown error"}`);
+  }
+
+  const firstChoice = data.choices?.[0];
+  const content = firstChoice?.message?.content;
+
+  if (typeof content === "string" && content.trim()) {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    const text = content.map((item) => item.text).filter(Boolean).join("\n").trim();
+    if (text) return text;
+  }
+
+  if (firstChoice?.text?.trim()) {
+    return firstChoice.text;
+  }
+
+  const finishReason = firstChoice?.finish_reason ? ` Finish reason: ${firstChoice.finish_reason}.` : "";
+  return `OpenRouter returned no message content.${finishReason}
+
+Try a different specific free model in Settings, for example one currently listed at:
+https://openrouter.ai/models?max_price=0
+
+Raw response:
+${JSON.stringify(data, null, 2).slice(0, 1200)}`;
 }
 
 ipcMain.handle("settings:get", () => cachedSettings);
