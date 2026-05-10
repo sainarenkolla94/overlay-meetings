@@ -11,6 +11,7 @@ export type AppSettings = {
   preferredLanguage: string;
   triggerHotkey: string;
   hideHotkey: string;
+  autoAnalyzeIntervalSeconds: number;
   captureMode: "screen";
 };
 

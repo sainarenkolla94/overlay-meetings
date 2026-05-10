@@ -18,6 +18,8 @@ Implemented:
 - OpenRouter chat completions integration with optional screenshot sending.
 - Assistant modes: coding, behavioral, and meeting.
 - Manual analyze hotkey.
+- Auto-analyze toggle with configurable interval.
+- In-session suggestion history.
 - Hide/show hotkey.
 - Initial Windows capture-protection attempt with Electron `setContentProtection(true)`.
 
@@ -114,6 +116,8 @@ Use this flow on the Windows laptop:
 4. Put a coding question, code snippet, error message, or shared screen content on the display.
 5. Press `Ctrl + Shift + Space`.
 6. Check whether the overlay returns a useful suggestion.
+
+You can also click `Auto` to rerun analysis periodically. The interval is controlled in Settings by `Auto analyze interval seconds`. Keep this conservative when using rate-limited free models.
 
 Report these results after testing:
 

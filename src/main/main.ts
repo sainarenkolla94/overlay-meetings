@@ -19,6 +19,7 @@ const defaultSettings: AppSettings = {
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
   hideHotkey: "CommandOrControl+Shift+H",
+  autoAnalyzeIntervalSeconds: 20,
   captureMode: "screen"
 };
 

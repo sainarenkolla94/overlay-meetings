@@ -1,5 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Brain, CheckCircle2, Clipboard, Eye, EyeOff, KeyRound, Mic, Pause, Play, Settings, Sparkles, X } from "lucide-react";
+import {
+  Brain,
+  CheckCircle2,
+  Clipboard,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Mic,
+  Pause,
+  Play,
+  RotateCcw,
+  Settings,
+  Sparkles,
+  Timer,
+  X
+} from "lucide-react";
 import { createRoot } from "react-dom/client";
 import type { AnalyzeResult, AppSettings, AssistantStatus, TeamsStatus } from "../shared/types";
 import "./styles.css";
@@ -15,10 +30,17 @@ const defaultSettings: AppSettings = {
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
   hideHotkey: "CommandOrControl+Shift+H",
+  autoAnalyzeIntervalSeconds: 20,
   captureMode: "screen"
 };
 
 type Mode = "coding" | "behavioral" | "meeting";
+type SuggestionItem = {
+  id: number;
+  answer: string;
+  mode: Mode;
+  createdAt: string;
+};
 
 const overlayApi =
   window.overlayApi ??
@@ -61,9 +83,13 @@ function App() {
   const [clickThrough, setClickThrough] = useState(false);
   const [lastCapture, setLastCapture] = useState<string | undefined>();
   const [error, setError] = useState("");
+  const [autoAnalyze, setAutoAnalyze] = useState(false);
+  const [history, setHistory] = useState<SuggestionItem[]>([]);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef(transcript);
   const modeRef = useRef(mode);
+  const autoAnalyzeRef = useRef(autoAnalyze);
+  const analyzingRef = useRef(false);
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -72,6 +98,10 @@ function App() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    autoAnalyzeRef.current = autoAnalyze;
+  }, [autoAnalyze]);
 
   const maskedKey = useMemo(() => {
     const key = settings.provider === "openrouter" ? settings.openRouterApiKey : settings.openAiApiKey;
@@ -100,6 +130,19 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!autoAnalyze) return undefined;
+
+    const intervalMs = Math.max(settings.autoAnalyzeIntervalSeconds, 8) * 1000;
+    const interval = window.setInterval(() => {
+      if (!autoAnalyzeRef.current || analyzingRef.current) return;
+      if (!transcriptRef.current.trim() && !settings.sendScreenshotToOpenRouter && settings.provider === "openrouter") return;
+      void analyze(transcriptRef.current, modeRef.current, "auto");
+    }, intervalMs);
+
+    return () => window.clearInterval(interval);
+  }, [autoAnalyze, settings.autoAnalyzeIntervalSeconds, settings.provider, settings.sendScreenshotToOpenRouter]);
+
   async function refreshTeamsStatus() {
     const current = await overlayApi.getTeamsStatus();
     setTeamsStatus(current);
@@ -111,7 +154,9 @@ function App() {
     setShowSettings(false);
   }
 
-  async function analyze(transcriptForRequest = transcript, modeForRequest = mode) {
+  async function analyze(transcriptForRequest = transcript, modeForRequest = mode, source: "manual" | "auto" = "manual") {
+    if (analyzingRef.current) return;
+    analyzingRef.current = true;
     setStatus("analyzing");
     setError("");
     try {
@@ -120,12 +165,23 @@ function App() {
         mode: modeForRequest
       });
       setAnswer(result.answer);
+      setHistory((previous) => [
+        {
+          id: Date.now(),
+          answer: result.answer,
+          mode: modeForRequest,
+          createdAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        },
+        ...previous
+      ].slice(0, 5));
       setLastCapture(result.screenshotDataUrl);
       setStatus("ready");
       await refreshTeamsStatus();
     } catch (err) {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Analyze failed.");
+      setError(`${source === "auto" ? "Auto analyze failed" : "Analyze failed"}: ${err instanceof Error ? err.message : "Unknown error."}`);
+    } finally {
+      analyzingRef.current = false;
     }
   }
 
@@ -176,6 +232,10 @@ function App() {
     await navigator.clipboard.writeText(answer);
   }
 
+  async function copyTranscript() {
+    await navigator.clipboard.writeText(transcript);
+  }
+
   return (
     <main className="shell">
       <header className="titlebar">
@@ -217,11 +277,14 @@ function App() {
           <Sparkles size={17} />
           Analyze
         </button>
+        <button className={autoAnalyze ? "active" : ""} onClick={() => setAutoAnalyze((enabled) => !enabled)}>
+          <Timer size={17} />
+          Auto
+        </button>
         <button onClick={toggleMic}>
           {status === "listening" ? <Pause size={17} /> : <Mic size={17} />}
           {status === "listening" ? "Pause mic" : "Mic"}
         </button>
-        <button onClick={() => setTranscript("")}>Clear</button>
       </section>
 
       <section className="answerPanel">
@@ -238,7 +301,14 @@ function App() {
       <section className="transcriptPanel">
         <div className="panelHeader">
           <span>Recent transcript</span>
-          <span className="hint">Manual text works too</span>
+          <div className="panelActions">
+            <button title="Copy transcript" onClick={copyTranscript} className="iconButton small">
+              <Clipboard size={15} />
+            </button>
+            <button title="Clear transcript" onClick={() => setTranscript("")} className="iconButton small">
+              <RotateCcw size={15} />
+            </button>
+          </div>
         </div>
         <textarea
           value={transcript}
@@ -246,6 +316,25 @@ function App() {
           placeholder="Paste or dictate recent Teams conversation here for now."
         />
       </section>
+
+      {history.length > 0 && (
+        <section className="historyPanel">
+          <div className="panelHeader">
+            <span>Session history</span>
+            <button title="Clear history" onClick={() => setHistory([])} className="iconButton small">
+              <RotateCcw size={15} />
+            </button>
+          </div>
+          <div className="historyList">
+            {history.map((item) => (
+              <button key={item.id} className="historyItem" onClick={() => setAnswer(item.answer)}>
+                <span>{item.createdAt} · {item.mode}</span>
+                <strong>{item.answer.slice(0, 92)}{item.answer.length > 92 ? "..." : ""}</strong>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <footer className="footer">
         <span><KeyRound size={14} /> {settings.triggerHotkey}</span>
@@ -341,6 +430,21 @@ function App() {
               <input
                 value={draftSettings.hideHotkey}
                 onChange={(event) => setDraftSettings({ ...draftSettings, hideHotkey: event.target.value })}
+              />
+            </label>
+            <label>
+              Auto analyze interval seconds
+              <input
+                type="number"
+                min="8"
+                max="120"
+                value={draftSettings.autoAnalyzeIntervalSeconds}
+                onChange={(event) =>
+                  setDraftSettings({
+                    ...draftSettings,
+                    autoAnalyzeIntervalSeconds: Number(event.target.value)
+                  })
+                }
               />
             </label>
             <div className="modalActions">
