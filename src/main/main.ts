@@ -110,23 +110,51 @@ async function getTeamsStatus(): Promise<TeamsStatus> {
     };
   }
 
+  const processNames = ["ms-teams.exe", "Teams.exe", "msteams.exe"];
+
+  try {
+    const checks = await Promise.all(
+      processNames.map(async (processName) => {
+        const { stdout } = await execFileAsync("tasklist.exe", ["/FI", `IMAGENAME eq ${processName}`]);
+        return stdout.toLowerCase().includes(processName.toLowerCase());
+      })
+    );
+
+    if (checks.some(Boolean)) {
+      return {
+        detected: true,
+        platform: process.platform,
+        message: "Microsoft Teams is running."
+      };
+    }
+
+    return {
+      detected: false,
+      platform: process.platform,
+      message: "Microsoft Teams is not detected. Checked new Teams and classic Teams processes."
+    };
+  } catch {
+    // Some managed Windows machines block tasklist; PowerShell is a useful fallback.
+  }
+
   try {
     const { stdout } = await execFileAsync("powershell.exe", [
       "-NoProfile",
       "-Command",
-      "Get-Process -Name ms-teams,Teams -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty ProcessName"
+      "Get-Process -Name ms-teams,Teams,msteams -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty ProcessName"
     ]);
     const detected = stdout.trim().length > 0;
     return {
       detected,
       platform: process.platform,
-      message: detected ? "Microsoft Teams is running." : "Microsoft Teams is not detected."
+      message: detected ? "Microsoft Teams is running." : "Microsoft Teams is not detected. Checked new Teams and classic Teams processes."
     };
-  } catch {
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "unknown error";
     return {
       detected: false,
       platform: process.platform,
-      message: "Could not check Microsoft Teams process status."
+      message: `Could not check Microsoft Teams status. ${reason}`
     };
   }
 }
