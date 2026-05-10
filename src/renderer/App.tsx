@@ -62,6 +62,16 @@ function App() {
   const [lastCapture, setLastCapture] = useState<string | undefined>();
   const [error, setError] = useState("");
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const transcriptRef = useRef(transcript);
+  const modeRef = useRef(mode);
+
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   const maskedKey = useMemo(() => {
     const key = settings.provider === "openrouter" ? settings.openRouterApiKey : settings.openAiApiKey;
@@ -77,7 +87,7 @@ function App() {
     refreshTeamsStatus();
 
     const removeAnalyze = overlayApi.onAnalyzeShortcut(() => {
-      void analyze();
+      void analyze(transcriptRef.current, modeRef.current);
     });
     const removeToggle = overlayApi.onToggleVisibility(() => setClickThrough(false));
 
@@ -101,11 +111,14 @@ function App() {
     setShowSettings(false);
   }
 
-  async function analyze() {
+  async function analyze(transcriptForRequest = transcript, modeForRequest = mode) {
     setStatus("analyzing");
     setError("");
     try {
-      const result: AnalyzeResult = await overlayApi.analyzeNow({ transcript, mode });
+      const result: AnalyzeResult = await overlayApi.analyzeNow({
+        transcript: transcriptForRequest,
+        mode: modeForRequest
+      });
       setAnswer(result.answer);
       setLastCapture(result.screenshotDataUrl);
       setStatus("ready");
@@ -200,7 +213,7 @@ function App() {
       </section>
 
       <section className="controls">
-        <button className="primary" onClick={analyze} disabled={status === "analyzing"}>
+        <button className="primary" onClick={() => analyze()} disabled={status === "analyzing"}>
           <Sparkles size={17} />
           Analyze
         </button>
