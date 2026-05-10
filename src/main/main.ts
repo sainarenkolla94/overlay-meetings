@@ -3,7 +3,14 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import path from "node:path";
-import type { AnalyzeInput, AnalyzeResult, AppSettings, TeamsStatus } from "../shared/types.js";
+import type {
+  AnalyzeInput,
+  AnalyzeResult,
+  AppSettings,
+  TeamsStatus,
+  WindowNudgeDirection,
+  WindowSnapPosition
+} from "../shared/types.js";
 
 const execFileAsync = promisify(execFile);
 const isDev = !app.isPackaged;
@@ -25,6 +32,8 @@ const defaultSettings: AppSettings = {
 
 let cachedSettings: AppSettings = { ...defaultSettings };
 let overlayWindow: BrowserWindow | null = null;
+const fullSize = { width: 430, height: 680 };
+const compactSize = { width: 360, height: 280 };
 
 function settingsPath() {
   return path.join(app.getPath("userData"), "settings.json");
@@ -104,6 +113,36 @@ function registerShortcuts() {
       overlayWindow.webContents.send("shortcut:toggle-visibility");
     }
   });
+
+  globalShortcut.register("CommandOrControl+Alt+Up", () => nudgeWindow("up"));
+  globalShortcut.register("CommandOrControl+Alt+Down", () => nudgeWindow("down"));
+  globalShortcut.register("CommandOrControl+Alt+Left", () => nudgeWindow("left"));
+  globalShortcut.register("CommandOrControl+Alt+Right", () => nudgeWindow("right"));
+}
+
+function nudgeWindow(direction: WindowNudgeDirection, amount = 24) {
+  if (!overlayWindow) return;
+  const bounds = overlayWindow.getBounds();
+  const next = { x: bounds.x, y: bounds.y };
+
+  if (direction === "up") next.y -= amount;
+  if (direction === "down") next.y += amount;
+  if (direction === "left") next.x -= amount;
+  if (direction === "right") next.x += amount;
+
+  overlayWindow.setBounds({ ...bounds, ...next }, true);
+}
+
+function snapWindow(position: WindowSnapPosition) {
+  if (!overlayWindow) return;
+  const bounds = overlayWindow.getBounds();
+  const display = screen.getDisplayMatching(bounds);
+  const area = display.workArea;
+  const margin = 16;
+  const x = position.endsWith("right") ? area.x + area.width - bounds.width - margin : area.x + margin;
+  const y = position.startsWith("bottom") ? area.y + area.height - bounds.height - margin : area.y + margin;
+
+  overlayWindow.setBounds({ ...bounds, x, y }, true);
 }
 
 async function getTeamsStatus(): Promise<TeamsStatus> {
@@ -352,6 +391,24 @@ ipcMain.handle("teams:status", () => getTeamsStatus());
 
 ipcMain.handle("window:click-through", (_event, enabled: boolean) => {
   overlayWindow?.setIgnoreMouseEvents(enabled, { forward: true });
+});
+
+ipcMain.handle("window:resizable", (_event, enabled: boolean) => {
+  overlayWindow?.setResizable(enabled);
+});
+
+ipcMain.handle("window:compact", (_event, enabled: boolean) => {
+  if (!overlayWindow) return;
+  overlayWindow.setResizable(!enabled);
+  overlayWindow.setSize(enabled ? compactSize.width : fullSize.width, enabled ? compactSize.height : fullSize.height, true);
+});
+
+ipcMain.handle("window:nudge", (_event, direction: WindowNudgeDirection, amount?: number) => {
+  nudgeWindow(direction, amount);
+});
+
+ipcMain.handle("window:snap", (_event, position: WindowSnapPosition) => {
+  snapWindow(position);
 });
 
 ipcMain.handle("window:hide", () => {

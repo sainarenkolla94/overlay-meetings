@@ -3,20 +3,27 @@ import {
   Brain,
   CheckCircle2,
   Clipboard,
+  CornerDownLeft,
+  CornerDownRight,
+  CornerUpLeft,
+  CornerUpRight,
   Eye,
   EyeOff,
   KeyRound,
+  Lock,
   Mic,
+  Minimize2,
   Pause,
   Play,
   RotateCcw,
   Settings,
   Sparkles,
   Timer,
+  Unlock,
   X
 } from "lucide-react";
 import { createRoot } from "react-dom/client";
-import type { AnalyzeResult, AppSettings, AssistantStatus, TeamsStatus } from "../shared/types";
+import type { AnalyzeResult, AppSettings, AssistantStatus, TeamsStatus, WindowSnapPosition } from "../shared/types";
 import "./styles.css";
 
 const defaultSettings: AppSettings = {
@@ -58,6 +65,10 @@ const overlayApi =
       message: "Browser preview mode. Teams detection runs in the Electron app."
     }),
     setClickThrough: async () => undefined,
+    setResizable: async () => undefined,
+    setCompact: async () => undefined,
+    nudgeWindow: async () => undefined,
+    snapWindow: async () => undefined,
     hideOverlay: async () => undefined,
     onAnalyzeShortcut: () => () => undefined,
     onToggleVisibility: () => () => undefined
@@ -84,6 +95,8 @@ function App() {
   const [lastCapture, setLastCapture] = useState<string | undefined>();
   const [error, setError] = useState("");
   const [autoAnalyze, setAutoAnalyze] = useState(false);
+  const [compact, setCompact] = useState(false);
+  const [resizeLocked, setResizeLocked] = useState(true);
   const [history, setHistory] = useState<SuggestionItem[]>([]);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const transcriptRef = useRef(transcript);
@@ -115,6 +128,7 @@ function App() {
       setDraftSettings(loaded);
     });
     refreshTeamsStatus();
+    void overlayApi.setResizable(false);
 
     const removeAnalyze = overlayApi.onAnalyzeShortcut(() => {
       void analyze(transcriptRef.current, modeRef.current);
@@ -228,6 +242,28 @@ function App() {
     await overlayApi.setClickThrough(next);
   }
 
+  async function toggleCompact() {
+    const next = !compact;
+    setCompact(next);
+    if (next) {
+      setResizeLocked(true);
+      await overlayApi.setCompact(true);
+      return;
+    }
+    await overlayApi.setCompact(false);
+    await overlayApi.setResizable(!resizeLocked);
+  }
+
+  async function toggleResizeLock() {
+    const next = !resizeLocked;
+    setResizeLocked(next);
+    await overlayApi.setResizable(!next && !compact);
+  }
+
+  async function snap(position: WindowSnapPosition) {
+    await overlayApi.snapWindow(position);
+  }
+
   async function copyAnswer() {
     await navigator.clipboard.writeText(answer);
   }
@@ -237,10 +273,10 @@ function App() {
   }
 
   return (
-    <main className="shell">
+    <main className={compact ? "shell compactShell" : "shell"}>
       <header className="titlebar">
         <div className="brand">
-          <div className="logo">
+          <div className="logo dragHandle" title="Drag overlay">
             <Brain size={18} />
           </div>
           <div>
@@ -252,6 +288,12 @@ function App() {
           <button title="Toggle click-through" onClick={toggleClickThrough} className={clickThrough ? "active iconButton" : "iconButton"}>
             {clickThrough ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
+          <button title="Compact mode" onClick={toggleCompact} className={compact ? "active iconButton" : "iconButton"}>
+            <Minimize2 size={16} />
+          </button>
+          <button title="Lock resizing" onClick={toggleResizeLock} className={resizeLocked ? "active iconButton" : "iconButton"}>
+            {resizeLocked ? <Lock size={16} /> : <Unlock size={16} />}
+          </button>
           <button title="Settings" onClick={() => setShowSettings(true)} className="iconButton">
             <Settings size={16} />
           </button>
@@ -261,10 +303,18 @@ function App() {
         </div>
       </header>
 
-      <section className="statusStrip">
+      <section className="snapBar" aria-label="Snap overlay">
+        <button title="Snap top left" onClick={() => snap("top-left")}><CornerUpLeft size={15} /></button>
+        <button title="Snap top right" onClick={() => snap("top-right")}><CornerUpRight size={15} /></button>
+        <button title="Snap bottom left" onClick={() => snap("bottom-left")}><CornerDownLeft size={15} /></button>
+        <button title="Snap bottom right" onClick={() => snap("bottom-right")}><CornerDownRight size={15} /></button>
+        <span>Move: Ctrl+Alt+Arrows</span>
+      </section>
+
+      {!compact && <section className="statusStrip">
         <span className={teamsStatus?.detected ? "dot ok" : "dot"} />
         <span>{teamsStatus?.message ?? "Checking Microsoft Teams..."}</span>
-      </section>
+      </section>}
 
       <section className="modeBar" aria-label="Assistant mode">
         <button className={mode === "coding" ? "selected" : ""} onClick={() => setMode("coding")}>Coding</button>
@@ -298,7 +348,7 @@ function App() {
         {error && <p className="error">{error}</p>}
       </section>
 
-      <section className="transcriptPanel">
+      {!compact && <section className="transcriptPanel">
         <div className="panelHeader">
           <span>Recent transcript</span>
           <div className="panelActions">
@@ -315,9 +365,9 @@ function App() {
           onChange={(event) => setTranscript(event.target.value)}
           placeholder="Paste or dictate recent Teams conversation here for now."
         />
-      </section>
+      </section>}
 
-      {history.length > 0 && (
+      {!compact && history.length > 0 && (
         <section className="historyPanel">
           <div className="panelHeader">
             <span>Session history</span>
@@ -336,12 +386,12 @@ function App() {
         </section>
       )}
 
-      <footer className="footer">
+      {!compact && <footer className="footer">
         <span><KeyRound size={14} /> {settings.triggerHotkey}</span>
         <span><CheckCircle2 size={14} /> {settings.provider} · {maskedKey}</span>
-      </footer>
+      </footer>}
 
-      {lastCapture && (
+      {!compact && lastCapture && (
         <details className="capturePreview">
           <summary>Last screen capture</summary>
           <img src={lastCapture} alt="Last captured screen" />

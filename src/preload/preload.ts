@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AnalyzeInput, AppSettings } from "../shared/types.js";
+import type { AnalyzeInput, AppSettings, WindowNudgeDirection, WindowSnapPosition } from "../shared/types.js";
 
 contextBridge.exposeInMainWorld("overlayApi", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
@@ -7,6 +7,10 @@ contextBridge.exposeInMainWorld("overlayApi", {
   analyzeNow: (input: AnalyzeInput) => ipcRenderer.invoke("assistant:analyze", input),
   getTeamsStatus: () => ipcRenderer.invoke("teams:status"),
   setClickThrough: (enabled: boolean) => ipcRenderer.invoke("window:click-through", enabled),
+  setResizable: (enabled: boolean) => ipcRenderer.invoke("window:resizable", enabled),
+  setCompact: (enabled: boolean) => ipcRenderer.invoke("window:compact", enabled),
+  nudgeWindow: (direction: WindowNudgeDirection, amount?: number) => ipcRenderer.invoke("window:nudge", direction, amount),
+  snapWindow: (position: WindowSnapPosition) => ipcRenderer.invoke("window:snap", position),
   hideOverlay: () => ipcRenderer.invoke("window:hide"),
   onAnalyzeShortcut: (callback: () => void) => {
     const listener = () => callback();

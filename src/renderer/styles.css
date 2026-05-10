@@ -62,13 +62,22 @@ button:hover {
   overflow: hidden;
 }
 
+.compactShell {
+  padding: 10px;
+}
+
 .titlebar {
-  -webkit-app-region: drag;
+  -webkit-app-region: no-drag;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 2px 2px 10px;
+}
+
+.dragHandle {
+  -webkit-app-region: drag;
+  cursor: move;
 }
 
 .brand {
@@ -106,6 +115,7 @@ button:hover {
 
 .windowActions,
 .controls,
+.snapBar,
 .modalActions {
   display: flex;
   align-items: center;
@@ -115,10 +125,32 @@ button:hover {
 .windowActions,
 .windowActions button,
 .controls button,
+.snapBar button,
 .modeBar button,
 .panelHeader button,
 .modalActions button {
   -webkit-app-region: no-drag;
+}
+
+.snapBar {
+  display: grid;
+  grid-template-columns: repeat(4, 34px) 1fr;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.snapBar button {
+  width: 34px;
+  min-height: 30px;
+  padding: 0;
+}
+
+.snapBar span {
+  min-width: 0;
+  color: #aab7c6;
+  font-size: 11px;
+  text-align: right;
 }
 
 .iconButton {
@@ -236,6 +268,16 @@ button:hover {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.45;
+}
+
+.compactShell .answerPanel pre {
+  min-height: 118px;
+  max-height: 142px;
+}
+
+.compactShell .modeBar,
+.compactShell .controls {
+  padding-top: 0;
 }
 
 .loader {

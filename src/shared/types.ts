@@ -31,3 +31,6 @@ export type TeamsStatus = {
   platform: NodeJS.Platform;
   message: string;
 };
+
+export type WindowNudgeDirection = "up" | "down" | "left" | "right";
+export type WindowSnapPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";

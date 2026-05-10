@@ -20,6 +20,7 @@ Implemented:
 - Manual analyze hotkey.
 - Auto-analyze toggle with configurable interval.
 - In-session suggestion history.
+- Compact mode, resize lock, corner snapping, and keyboard nudging.
 - Hide/show hotkey.
 - Initial Windows capture-protection attempt with Electron `setContentProtection(true)`.
 
@@ -103,8 +104,22 @@ OpenRouter has a `Send screenshot to OpenRouter` setting. Keep it enabled when u
 
 - Analyze current screen/context: `Ctrl + Shift + Space`
 - Hide/show overlay: `Ctrl + Shift + H`
+- Nudge overlay position: `Ctrl + Alt + Arrow keys`
 
 On macOS during development, Electron maps `CommandOrControl` to Command. The target platform for this prototype is Windows.
+
+## Screen Share Workflow
+
+To reduce visible cursor movement during screen sharing:
+
+1. Position the overlay before sharing.
+2. Turn on resize lock with the lock button.
+3. Use compact mode when you only need the answer pane.
+4. Use the corner snap buttons instead of dragging.
+5. Use `Ctrl + Alt + Arrow keys` to nudge the overlay without moving the mouse.
+6. Use click-through mode when you do not need to interact with the overlay.
+
+The resize lock avoids accidental resize cursors around the window border. Compact mode also disables resizing while it is active.
 
 ## Teams Test Flow
 
