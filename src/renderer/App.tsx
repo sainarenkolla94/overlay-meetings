@@ -9,6 +9,7 @@ import {
   CornerUpRight,
   Eye,
   EyeOff,
+  GalleryVerticalEnd,
   KeyRound,
   Lock,
   Mic,
@@ -42,6 +43,7 @@ const defaultSettings: AppSettings = {
 };
 
 type Mode = "coding" | "behavioral" | "meeting";
+type ViewMode = "full" | "glass" | "stealth";
 type SuggestionItem = {
   id: number;
   answer: string;
@@ -96,6 +98,7 @@ function App() {
   const [error, setError] = useState("");
   const [autoAnalyze, setAutoAnalyze] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("full");
   const [resizeLocked, setResizeLocked] = useState(true);
   const [history, setHistory] = useState<SuggestionItem[]>([]);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -245,6 +248,7 @@ function App() {
   async function toggleCompact() {
     const next = !compact;
     setCompact(next);
+    setViewMode(next ? "glass" : "full");
     if (next) {
       setResizeLocked(true);
       await overlayApi.setCompact(true);
@@ -264,6 +268,13 @@ function App() {
     await overlayApi.snapWindow(position);
   }
 
+  async function setModeView(next: ViewMode) {
+    setViewMode(next);
+    setCompact(next !== "full");
+    setResizeLocked(true);
+    await overlayApi.setCompact(next !== "full");
+  }
+
   async function copyAnswer() {
     await navigator.clipboard.writeText(answer);
   }
@@ -273,7 +284,7 @@ function App() {
   }
 
   return (
-    <main className={compact ? "shell compactShell" : "shell"}>
+    <main className={`shell ${compact ? "compactShell" : ""} ${viewMode}Mode`}>
       <header className="titlebar">
         <div className="brand">
           <div className="logo dragHandle" title="Drag overlay">
@@ -290,6 +301,9 @@ function App() {
           </button>
           <button title="Compact mode" onClick={toggleCompact} className={compact ? "active iconButton" : "iconButton"}>
             <Minimize2 size={16} />
+          </button>
+          <button title="View mode" onClick={() => setModeView(viewMode === "full" ? "glass" : viewMode === "glass" ? "stealth" : "full")} className="iconButton">
+            <GalleryVerticalEnd size={16} />
           </button>
           <button title="Lock resizing" onClick={toggleResizeLock} className={resizeLocked ? "active iconButton" : "iconButton"}>
             {resizeLocked ? <Lock size={16} /> : <Unlock size={16} />}
@@ -311,18 +325,36 @@ function App() {
         <span>Move: Ctrl+Alt+Arrows</span>
       </section>
 
-      {!compact && <section className="statusStrip">
+      {viewMode !== "stealth" && (
+        <section className="viewSwitcher" aria-label="View mode">
+          <button className={viewMode === "full" ? "selected" : ""} onClick={() => setModeView("full")}>Full</button>
+          <button className={viewMode === "glass" ? "selected" : ""} onClick={() => setModeView("glass")}>Glass</button>
+          <button onClick={() => setModeView("stealth")}>Stealth</button>
+        </section>
+      )}
+
+      {viewMode === "stealth" ? (
+        <section className="stealthPill">
+          <span className={status === "ready" ? "dot ok" : "dot"} />
+          <strong>{status === "analyzing" ? "Analyzing..." : answer.slice(0, 92)}</strong>
+          <button title="Analyze" onClick={() => analyze()} disabled={status === "analyzing"}>
+            <Sparkles size={14} />
+          </button>
+        </section>
+      ) : null}
+
+      {!compact && viewMode !== "stealth" && <section className="statusStrip">
         <span className={teamsStatus?.detected ? "dot ok" : "dot"} />
         <span>{teamsStatus?.message ?? "Checking Microsoft Teams..."}</span>
       </section>}
 
-      <section className="modeBar" aria-label="Assistant mode">
+      {viewMode !== "stealth" && <section className="modeBar" aria-label="Assistant mode">
         <button className={mode === "coding" ? "selected" : ""} onClick={() => setMode("coding")}>Coding</button>
         <button className={mode === "behavioral" ? "selected" : ""} onClick={() => setMode("behavioral")}>Behavioral</button>
         <button className={mode === "meeting" ? "selected" : ""} onClick={() => setMode("meeting")}>Meeting</button>
-      </section>
+      </section>}
 
-      <section className="controls">
+      {viewMode !== "stealth" && <section className="controls">
         <button className="primary" onClick={() => analyze()} disabled={status === "analyzing"}>
           <Sparkles size={17} />
           Analyze
@@ -335,9 +367,9 @@ function App() {
           {status === "listening" ? <Pause size={17} /> : <Mic size={17} />}
           {status === "listening" ? "Pause mic" : "Mic"}
         </button>
-      </section>
+      </section>}
 
-      <section className="answerPanel">
+      {viewMode !== "stealth" && <section className="answerPanel">
         <div className="panelHeader">
           <span>Suggestion</span>
           <button title="Copy answer" onClick={copyAnswer} className="iconButton small">
@@ -346,7 +378,7 @@ function App() {
         </div>
         {status === "analyzing" ? <div className="loader">Reading screen and transcript...</div> : <pre>{answer}</pre>}
         {error && <p className="error">{error}</p>}
-      </section>
+      </section>}
 
       {!compact && <section className="transcriptPanel">
         <div className="panelHeader">

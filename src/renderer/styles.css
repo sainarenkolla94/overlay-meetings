@@ -66,6 +66,24 @@ button:hover {
   padding: 10px;
 }
 
+.glassMode {
+  border-color: rgba(255, 255, 255, 0.12);
+  background:
+    linear-gradient(160deg, rgba(10, 14, 20, 0.56), rgba(18, 26, 27, 0.46)),
+    rgba(9, 12, 16, 0.42);
+  box-shadow: 0 12px 42px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.stealthMode {
+  min-height: 100vh;
+  padding: 8px;
+  border-color: rgba(131, 247, 195, 0.16);
+  background: rgba(8, 12, 14, 0.28);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px);
+}
+
 .titlebar {
   -webkit-app-region: no-drag;
   display: flex;
@@ -138,6 +156,65 @@ button:hover {
   align-items: center;
   gap: 6px;
   margin-bottom: 10px;
+}
+
+.viewSwitcher {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.viewSwitcher button {
+  min-height: 30px;
+  color: #bfcede;
+}
+
+.viewSwitcher .selected {
+  color: #101615;
+  background: #83f7c3;
+  border-color: rgba(131, 247, 195, 0.75);
+}
+
+.stealthMode .snapBar,
+.stealthMode .titlebar {
+  padding: 0;
+  margin-bottom: 7px;
+}
+
+.stealthMode .brand div:not(.logo),
+.stealthMode .windowActions button:not(:nth-child(3)):not(:nth-child(4)) {
+  display: none;
+}
+
+.stealthPill {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: 10px 1fr 32px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  background: rgba(7, 10, 13, 0.42);
+}
+
+.stealthPill strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #f6fbff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.stealthPill button {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
 }
 
 .snapBar button {
@@ -238,6 +315,15 @@ button:hover {
   background: rgba(255, 255, 255, 0.055);
 }
 
+.glassMode .answerPanel,
+.glassMode .transcriptPanel,
+.glassMode .historyPanel,
+.glassMode .capturePreview,
+.glassMode .statusStrip {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(8, 12, 16, 0.28);
+}
+
 .panelHeader {
   min-height: 36px;
   padding: 8px 10px;
@@ -271,8 +357,8 @@ button:hover {
 }
 
 .compactShell .answerPanel pre {
-  min-height: 118px;
-  max-height: 142px;
+  min-height: 106px;
+  max-height: 126px;
 }
 
 .compactShell .modeBar,

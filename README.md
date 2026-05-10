@@ -21,6 +21,7 @@ Implemented:
 - Auto-analyze toggle with configurable interval.
 - In-session suggestion history.
 - Compact mode, resize lock, corner snapping, and keyboard nudging.
+- View modes: Full, Glass, and Stealth.
 - Hide/show hotkey.
 - Initial Windows capture-protection attempt with Electron `setContentProtection(true)`.
 
@@ -112,12 +113,14 @@ On macOS during development, Electron maps `CommandOrControl` to Command. The ta
 
 To reduce visible cursor movement during screen sharing:
 
-1. Position the overlay before sharing.
-2. Turn on resize lock with the lock button.
-3. Use compact mode when you only need the answer pane.
-4. Use the corner snap buttons instead of dragging.
-5. Use `Ctrl + Alt + Arrow keys` to nudge the overlay without moving the mouse.
-6. Use click-through mode when you do not need to interact with the overlay.
+1. Use `Full` mode for setup, settings, transcript entry, and debugging.
+2. Switch to `Glass` mode during normal interview assistance.
+3. Switch to `Stealth` mode during screen sharing.
+4. Position the overlay before sharing.
+5. Turn on resize lock with the lock button.
+6. Use the corner snap buttons instead of dragging.
+7. Use `Ctrl + Alt + Arrow keys` to nudge the overlay without moving the mouse.
+8. Use click-through mode when you do not need to interact with the overlay.
 
 The resize lock avoids accidental resize cursors around the window border. Compact mode also disables resizing while it is active.
 
