@@ -15,7 +15,7 @@ Implemented:
 - Microsoft Teams process detection on Windows.
 - Primary screen capture using Electron `desktopCapturer`.
 - OpenAI Responses API integration using screenshot + transcript context.
-- OpenRouter chat completions integration for text-only testing.
+- OpenRouter chat completions integration with optional screenshot sending.
 - Assistant modes: coding, behavioral, and meeting.
 - Manual analyze hotkey.
 - Hide/show hotkey.
@@ -83,10 +83,10 @@ https://openrouter.ai/settings/keys
 
 3. Paste the OpenRouter API key.
 
-4. Use a specific free model instead of the generic router when possible, for example:
+4. Use a specific free model instead of the generic router when possible. For screenshot analysis, try a vision-capable free model such as:
 
 ```text
-meta-llama/llama-3.2-3b-instruct:free
+google/gemma-4-26b-a4b-it:free
 ```
 
 Free model availability changes. If that model fails, choose another currently listed free model from:
@@ -95,7 +95,7 @@ Free model availability changes. If that model fails, choose another currently l
 https://openrouter.ai/models?max_price=0
 ```
 
-OpenRouter mode is currently text-only in this app. It uses the transcript/manual context field and does not send screenshots yet. This avoids many free-model vision failures.
+OpenRouter has a `Send screenshot to OpenRouter` setting. Keep it enabled when using a vision-capable model. Turn it off if a selected free model rejects image input or rate limits.
 
 ## Default Hotkeys
 
@@ -186,7 +186,8 @@ Suggested answer in overlay
 With OpenRouter selected:
 
 ```text
-Transcript/manual context
+Screenshot, if enabled
++ transcript/manual context
         |
         v
 OpenRouter chat completions

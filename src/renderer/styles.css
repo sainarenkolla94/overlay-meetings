@@ -269,6 +269,12 @@ select {
   outline: 0;
 }
 
+input[type="checkbox"] {
+  width: 16px;
+  min-height: 16px;
+  accent-color: #83f7c3;
+}
+
 select option {
   color: #111820;
 }
@@ -326,6 +332,13 @@ select option {
   margin: 10px 0;
   color: #cdd8e4;
   font-size: 12px;
+}
+
+.settingsModal .checkboxRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
 }
 
 .modalActions {

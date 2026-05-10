@@ -6,6 +6,7 @@ export type AppSettings = {
   openRouterApiKey: string;
   model: string;
   openRouterModel: string;
+  sendScreenshotToOpenRouter: boolean;
   transcriptionModel: string;
   preferredLanguage: string;
   triggerHotkey: string;

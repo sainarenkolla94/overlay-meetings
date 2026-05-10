@@ -13,7 +13,8 @@ const defaultSettings: AppSettings = {
   openAiApiKey: "",
   openRouterApiKey: "",
   model: "gpt-4.1-mini",
-  openRouterModel: "meta-llama/llama-3.2-3b-instruct:free",
+  openRouterModel: "google/gemma-4-26b-a4b-it:free",
+  sendScreenshotToOpenRouter: true,
   transcriptionModel: "gpt-4o-mini-transcribe",
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
@@ -240,10 +241,31 @@ async function callOpenAi(settings: AppSettings, input: AnalyzeInput, screenshot
   );
 }
 
-async function callOpenRouter(settings: AppSettings, input: AnalyzeInput) {
+async function callOpenRouter(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string) {
   if (!settings.openRouterApiKey) {
     return "Add your OpenRouter API key in Settings, then press Analyze again.";
   }
+
+  const prompt = buildAssistantPrompt(input, settings);
+  const userContent =
+    settings.sendScreenshotToOpenRouter && screenshotDataUrl
+      ? [
+          {
+            type: "text",
+            text: `${prompt}
+
+Provider note: OpenRouter screenshot mode is enabled. Use the image and any transcript/manual context together. If the image is unclear, ask for the missing details.`
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: screenshotDataUrl
+            }
+          }
+        ]
+      : `${prompt}
+
+Provider note: OpenRouter screenshot mode is disabled, so use only the transcript/manual context. Ask for screen details if needed.`;
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -263,9 +285,7 @@ async function callOpenRouter(settings: AppSettings, input: AnalyzeInput) {
         },
         {
           role: "user",
-          content: `${buildAssistantPrompt(input, settings)}
-
-Provider note: OpenRouter mode is currently text-only in this app. The screen was captured locally, but it was not sent to OpenRouter yet. Use the transcript/manual context below, and ask for missing screen details if needed.`
+          content: userContent
         }
       ],
       max_tokens: 900,
@@ -342,7 +362,7 @@ ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise
   const [screenshotDataUrl, teams] = await Promise.all([capturePrimaryScreen(), getTeamsStatus()]);
   const answer =
     settings.provider === "openrouter"
-      ? await callOpenRouter(settings, input)
+      ? await callOpenRouter(settings, input, screenshotDataUrl)
       : await callOpenAi(settings, input, screenshotDataUrl);
 
   return {

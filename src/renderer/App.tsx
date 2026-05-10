@@ -9,7 +9,8 @@ const defaultSettings: AppSettings = {
   openAiApiKey: "",
   openRouterApiKey: "",
   model: "gpt-4.1-mini",
-  openRouterModel: "meta-llama/llama-3.2-3b-instruct:free",
+  openRouterModel: "google/gemma-4-26b-a4b-it:free",
+  sendScreenshotToOpenRouter: true,
   transcriptionModel: "gpt-4o-mini-transcribe",
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
@@ -297,6 +298,16 @@ function App() {
                 value={draftSettings.openRouterModel}
                 onChange={(event) => setDraftSettings({ ...draftSettings, openRouterModel: event.target.value })}
               />
+            </label>
+            <label className="checkboxRow">
+              <input
+                type="checkbox"
+                checked={draftSettings.sendScreenshotToOpenRouter}
+                onChange={(event) =>
+                  setDraftSettings({ ...draftSettings, sendScreenshotToOpenRouter: event.target.checked })
+                }
+              />
+              Send screenshot to OpenRouter
             </label>
             <label>
               Preferred coding language
