@@ -9,8 +9,11 @@ const execFileAsync = promisify(execFile);
 const isDev = !app.isPackaged;
 
 const defaultSettings: AppSettings = {
+  provider: "openai",
   openAiApiKey: "",
+  openRouterApiKey: "",
   model: "gpt-4.1-mini",
+  openRouterModel: "meta-llama/llama-3.2-3b-instruct:free",
   transcriptionModel: "gpt-4o-mini-transcribe",
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
@@ -237,6 +240,51 @@ async function callOpenAi(settings: AppSettings, input: AnalyzeInput, screenshot
   );
 }
 
+async function callOpenRouter(settings: AppSettings, input: AnalyzeInput) {
+  if (!settings.openRouterApiKey) {
+    return "Add your OpenRouter API key in Settings, then press Analyze again.";
+  }
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${settings.openRouterApiKey}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": "http://localhost/overlay-meetings",
+      "X-Title": "Overlay Meetings"
+    },
+    body: JSON.stringify({
+      model: settings.openRouterModel,
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a concise meeting/interview overlay assistant. Keep answers compact and easy to read while someone is on a call."
+        },
+        {
+          role: "user",
+          content: `${buildAssistantPrompt(input, settings)}
+
+Provider note: OpenRouter mode is currently text-only in this app. The screen was captured locally, but it was not sent to OpenRouter yet. Use the transcript/manual context below, and ask for missing screen details if needed.`
+        }
+      ],
+      max_tokens: 900,
+      temperature: 0.3
+    })
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`OpenRouter request failed: ${response.status} ${text}`);
+  }
+
+  const data = (await response.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+
+  return data.choices?.[0]?.message?.content ?? "No answer was returned.";
+}
+
 ipcMain.handle("settings:get", () => cachedSettings);
 
 ipcMain.handle("settings:save", (_event, settings: AppSettings) => {
@@ -258,7 +306,10 @@ ipcMain.handle("window:hide", () => {
 ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise<AnalyzeResult> => {
   const settings = cachedSettings;
   const [screenshotDataUrl, teams] = await Promise.all([capturePrimaryScreen(), getTeamsStatus()]);
-  const answer = await callOpenAi(settings, input, screenshotDataUrl);
+  const answer =
+    settings.provider === "openrouter"
+      ? await callOpenRouter(settings, input)
+      : await callOpenAi(settings, input, screenshotDataUrl);
 
   return {
     answer,

@@ -11,9 +11,11 @@ Implemented:
 - Electron + React + TypeScript desktop app.
 - Always-on-top overlay window.
 - Settings panel for OpenAI API key, model, language, and hotkeys.
+- Provider selection for OpenAI or OpenRouter.
 - Microsoft Teams process detection on Windows.
 - Primary screen capture using Electron `desktopCapturer`.
 - OpenAI Responses API integration using screenshot + transcript context.
+- OpenRouter chat completions integration for text-only testing.
 - Assistant modes: coding, behavioral, and meeting.
 - Manual analyze hotkey.
 - Hide/show hotkey.
@@ -34,8 +36,9 @@ Not implemented yet:
 - npm.
 - Microsoft Teams desktop app for Windows testing.
 - OpenAI API key.
+  - Optional: OpenRouter API key for free-model testing.
 
-ChatGPT Plus is not enough for automated app usage. This app needs an OpenAI API key because it calls the OpenAI API directly.
+ChatGPT Plus is not enough for automated app usage. This app needs an API key because it calls model APIs directly.
 
 ## Setup
 
@@ -57,11 +60,42 @@ This starts the Vite renderer and launches the Electron overlay.
 
 1. Open the overlay.
 2. Click the settings icon.
-3. Add your OpenAI API key.
-4. Set your preferred coding language, for example `Python`, `Java`, `TypeScript`, `C++`, or `C#`.
-5. Save settings.
+3. Choose a provider:
+   - `OpenAI` for screenshot + transcript analysis.
+   - `OpenRouter` for free-model text-only testing.
+4. Add the API key for your selected provider.
+5. Set your preferred coding language, for example `Python`, `Java`, `TypeScript`, `C++`, or `C#`.
+6. Save settings.
 
 Settings are stored locally in Electron's app user data directory. Do not commit API keys to GitHub.
+
+## OpenRouter Testing
+
+OpenRouter support is useful for early testing without paying OpenAI API costs.
+
+1. Create an OpenRouter API key at:
+
+```text
+https://openrouter.ai/settings/keys
+```
+
+2. In the app settings, set Provider to `OpenRouter`.
+
+3. Paste the OpenRouter API key.
+
+4. Use a specific free model instead of the generic router when possible, for example:
+
+```text
+meta-llama/llama-3.2-3b-instruct:free
+```
+
+Free model availability changes. If that model fails, choose another currently listed free model from:
+
+```text
+https://openrouter.ai/models?max_price=0
+```
+
+OpenRouter mode is currently text-only in this app. It uses the transcript/manual context field and does not send screenshots yet. This avoids many free-model vision failures.
 
 ## Default Hotkeys
 
@@ -149,6 +183,18 @@ OpenAI Responses API
 Suggested answer in overlay
 ```
 
+With OpenRouter selected:
+
+```text
+Transcript/manual context
+        |
+        v
+OpenRouter chat completions
+        |
+        v
+Suggested answer in overlay
+```
+
 Important files:
 
 - `src/main/main.ts`: Electron main process, window creation, settings, hotkeys, Teams detection, screen capture, OpenAI request.
@@ -181,4 +227,3 @@ Before using this in real calls, add:
 - consent-aware UX,
 - stronger API key storage,
 - and organization-specific compliance review if needed.
-

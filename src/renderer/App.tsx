@@ -5,8 +5,11 @@ import type { AnalyzeResult, AppSettings, AssistantStatus, TeamsStatus } from ".
 import "./styles.css";
 
 const defaultSettings: AppSettings = {
+  provider: "openai",
   openAiApiKey: "",
+  openRouterApiKey: "",
   model: "gpt-4.1-mini",
+  openRouterModel: "meta-llama/llama-3.2-3b-instruct:free",
   transcriptionModel: "gpt-4o-mini-transcribe",
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
@@ -60,9 +63,10 @@ function App() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
 
   const maskedKey = useMemo(() => {
-    if (!settings.openAiApiKey) return "No API key";
-    return `${settings.openAiApiKey.slice(0, 7)}...${settings.openAiApiKey.slice(-4)}`;
-  }, [settings.openAiApiKey]);
+    const key = settings.provider === "openrouter" ? settings.openRouterApiKey : settings.openAiApiKey;
+    if (!key) return "No API key";
+    return `${key.slice(0, 7)}...${key.slice(-4)}`;
+  }, [settings.openAiApiKey, settings.openRouterApiKey, settings.provider]);
 
   useEffect(() => {
     overlayApi.getSettings().then((loaded) => {
@@ -231,7 +235,7 @@ function App() {
 
       <footer className="footer">
         <span><KeyRound size={14} /> {settings.triggerHotkey}</span>
-        <span><CheckCircle2 size={14} /> {maskedKey}</span>
+        <span><CheckCircle2 size={14} /> {settings.provider} · {maskedKey}</span>
       </footer>
 
       {lastCapture && (
@@ -251,6 +255,18 @@ function App() {
               </button>
             </div>
             <label>
+              Provider
+              <select
+                value={draftSettings.provider}
+                onChange={(event) =>
+                  setDraftSettings({ ...draftSettings, provider: event.target.value as AppSettings["provider"] })
+                }
+              >
+                <option value="openai">OpenAI</option>
+                <option value="openrouter">OpenRouter</option>
+              </select>
+            </label>
+            <label>
               OpenAI API key
               <input
                 type="password"
@@ -260,10 +276,26 @@ function App() {
               />
             </label>
             <label>
-              Model
+              OpenAI model
               <input
                 value={draftSettings.model}
                 onChange={(event) => setDraftSettings({ ...draftSettings, model: event.target.value })}
+              />
+            </label>
+            <label>
+              OpenRouter API key
+              <input
+                type="password"
+                value={draftSettings.openRouterApiKey}
+                onChange={(event) => setDraftSettings({ ...draftSettings, openRouterApiKey: event.target.value })}
+                placeholder="sk-or-..."
+              />
+            </label>
+            <label>
+              OpenRouter model
+              <input
+                value={draftSettings.openRouterModel}
+                onChange={(event) => setDraftSettings({ ...draftSettings, openRouterModel: event.target.value })}
               />
             </label>
             <label>

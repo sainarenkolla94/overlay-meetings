@@ -1,8 +1,11 @@
 export type AssistantStatus = "idle" | "listening" | "analyzing" | "ready" | "error";
 
 export type AppSettings = {
+  provider: "openai" | "openrouter";
   openAiApiKey: string;
+  openRouterApiKey: string;
   model: string;
+  openRouterModel: string;
   transcriptionModel: string;
   preferredLanguage: string;
   triggerHotkey: string;
