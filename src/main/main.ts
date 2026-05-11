@@ -506,15 +506,17 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
     {
       text: `${buildAssistantPrompt(input, settings)}
 
-Provider note: Gemini mode is enabled. A screenshot image part is attached when screenshot sending is enabled. If the transcript is empty, inspect the screenshot and answer from the visible screen content. Keep the response compact for an overlay.`
+Provider note: Gemini mode is enabled. A screenshot image part is attached when screenshot sending is enabled. If the transcript is empty, inspect the screenshot and answer from the visible screen content.
+
+Before solving, silently read the screenshot. If you can see a coding problem, start with "Detected:" followed by a 1-line problem summary, then give the concise overlay answer. Do not ask for the problem statement unless the screenshot is blank, unreadable, or unrelated.`
     }
   ];
 
   const inlineData = screenshotDataUrl && settings.sendScreenshotToGemini ? dataUrlToInlineData(screenshotDataUrl) : undefined;
   if (inlineData) {
-    parts.push({
-      inline_data: {
-        mime_type: inlineData.mimeType,
+    parts.unshift({
+      inlineData: {
+        mimeType: inlineData.mimeType,
         data: inlineData.data
       }
     });
