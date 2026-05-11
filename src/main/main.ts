@@ -326,7 +326,7 @@ function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings) {
 
   return `${modeInstruction}
 
-Use the screenshot and recent transcript together. If the screen does not contain a clear question, say what is missing and suggest one clarifying question.
+Use the screenshot and recent transcript together. If a screenshot is attached, read the visible screen content directly even when the transcript is empty. Prioritize visible problem statements, code, examples, constraints, and error messages from the screenshot. Only say content is missing if neither the screenshot nor transcript contains enough detail.
 
 Recent transcript:
 ${input.transcript || "(No transcript captured yet.)"}`;
@@ -487,13 +487,13 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
     {
       text: `${buildAssistantPrompt(input, settings)}
 
-Provider note: Gemini mode is enabled. Use the transcript/manual context and screenshot together when available. Keep the response compact for an overlay.`
+Provider note: Gemini mode is enabled. A screenshot image part is attached when screenshot sending is enabled. If the transcript is empty, inspect the screenshot and answer from the visible screen content. Keep the response compact for an overlay.`
     }
   ];
 
   const inlineData = screenshotDataUrl && settings.sendScreenshotToGemini ? dataUrlToInlineData(screenshotDataUrl) : undefined;
   if (inlineData) {
-    parts.unshift({
+    parts.push({
       inline_data: {
         mime_type: inlineData.mimeType,
         data: inlineData.data
