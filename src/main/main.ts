@@ -1,4 +1,4 @@
-import { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, screen } from "electron";
+import { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, nativeImage, screen } from "electron";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
@@ -273,6 +273,30 @@ function dataUrlToInlineData(dataUrl: string) {
   };
 }
 
+function prepareScreenshotForProvider(dataUrl?: string) {
+  if (!dataUrl) return undefined;
+  const image = nativeImage.createFromDataURL(dataUrl);
+  const size = image.getSize();
+  const maxDimension = 1600;
+  const scale = Math.min(1, maxDimension / Math.max(size.width, size.height));
+  const resized =
+    scale < 1
+      ? image.resize({
+          width: Math.max(1, Math.round(size.width * scale)),
+          height: Math.max(1, Math.round(size.height * scale)),
+          quality: "best"
+        })
+      : image;
+
+  const jpeg = resized.toJPEG(82).toString("base64");
+  return {
+    dataUrl: `data:image/jpeg;base64,${jpeg}`,
+    width: resized.getSize().width,
+    height: resized.getSize().height,
+    mimeType: "image/jpeg"
+  };
+}
+
 async function transcribeAudio(input: TranscribeAudioInput): Promise<TranscribeAudioResult> {
   if (cachedSettings.transcriptionProvider === "groq") {
     return transcribeWithGroq(input);
@@ -360,8 +384,9 @@ async function callOpenAi(settings: AppSettings, input: AnalyzeInput, screenshot
     { type: "input_text", text: buildAssistantPrompt(input, settings) }
   ];
 
-  if (screenshotDataUrl) {
-    content.push({ type: "input_image", image_url: screenshotDataUrl });
+  const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
+  if (preparedScreenshot) {
+    content.push({ type: "input_image", image_url: preparedScreenshot.dataUrl });
   }
 
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -405,8 +430,9 @@ async function callOpenRouter(settings: AppSettings, input: AnalyzeInput, screen
   }
 
   const prompt = buildAssistantPrompt(input, settings);
+  const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   const userContent =
-    settings.sendScreenshotToOpenRouter && screenshotDataUrl
+    settings.sendScreenshotToOpenRouter && preparedScreenshot
       ? [
           {
             type: "text",
@@ -417,7 +443,7 @@ Provider note: OpenRouter screenshot mode is enabled. Use the image and any tran
           {
             type: "image_url",
             image_url: {
-              url: screenshotDataUrl
+              url: preparedScreenshot.dataUrl
             }
           }
         ]
@@ -502,17 +528,19 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
     return "Add your Gemini API key in Settings, then press Analyze again.";
   }
 
+  const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   const parts: Array<Record<string, unknown>> = [
     {
       text: `${buildAssistantPrompt(input, settings)}
 
 Provider note: Gemini mode is enabled. A screenshot image part is attached when screenshot sending is enabled. If the transcript is empty, inspect the screenshot and answer from the visible screen content.
+Screenshot status: ${settings.sendScreenshotToGemini && preparedScreenshot ? `attached as ${preparedScreenshot.mimeType}, ${preparedScreenshot.width}x${preparedScreenshot.height}` : "not attached"}.
 
 Before solving, silently read the screenshot. If you can see a coding problem, start with "Detected:" followed by a 1-line problem summary, then give the concise overlay answer. Do not ask for the problem statement unless the screenshot is blank, unreadable, or unrelated.`
     }
   ];
 
-  const inlineData = screenshotDataUrl && settings.sendScreenshotToGemini ? dataUrlToInlineData(screenshotDataUrl) : undefined;
+  const inlineData = settings.sendScreenshotToGemini && preparedScreenshot ? dataUrlToInlineData(preparedScreenshot.dataUrl) : undefined;
   if (inlineData) {
     parts.unshift({
       inline_data: {
@@ -619,6 +647,11 @@ ipcMain.handle("window:hide", () => {
 ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise<AnalyzeResult> => {
   const settings = cachedSettings;
   const [screenshotDataUrl, teams] = await Promise.all([capturePrimaryScreen(), getTeamsStatus()]);
+  const sentImageToProvider =
+    Boolean(screenshotDataUrl) &&
+    (settings.provider === "openai" ||
+      (settings.provider === "openrouter" && settings.sendScreenshotToOpenRouter) ||
+      (settings.provider === "gemini" && settings.sendScreenshotToGemini));
   const answer =
     settings.provider === "openrouter"
       ? await callOpenRouter(settings, input, screenshotDataUrl)
@@ -629,7 +662,9 @@ ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise
   return {
     answer,
     screenshotDataUrl,
-    teamsDetected: teams.detected
+    teamsDetected: teams.detected,
+    sentImageToProvider,
+    imageProvider: settings.provider
   };
 });
 

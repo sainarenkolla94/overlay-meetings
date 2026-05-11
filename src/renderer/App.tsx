@@ -75,7 +75,9 @@ const overlayApi =
     analyzeNow: async () => ({
       answer:
         "Electron preload is not connected in browser preview. Run npm run dev to use screen capture, Teams detection, and OpenAI analysis.",
-      teamsDetected: false
+      teamsDetected: false,
+      sentImageToProvider: false,
+      imageProvider: "openai"
     }),
     getCaptureSources: async () => [],
     getDesktopAudioSources: async () => [],
@@ -115,6 +117,7 @@ function App() {
   const [captureSources, setCaptureSources] = useState<CaptureSource[]>([]);
   const [clickThrough, setClickThrough] = useState(false);
   const [lastCapture, setLastCapture] = useState<string | undefined>();
+  const [lastImageStatus, setLastImageStatus] = useState("No image sent yet");
   const [error, setError] = useState("");
   const [autoAnalyze, setAutoAnalyze] = useState(false);
   const [systemAudioListening, setSystemAudioListening] = useState(false);
@@ -217,6 +220,7 @@ function App() {
         mode: modeForRequest
       });
       setAnswer(result.answer);
+      setLastImageStatus(result.sentImageToProvider ? `Image sent to ${result.imageProvider}` : `No image sent to ${result.imageProvider}`);
       setHistory((previous) => [
         {
           id: Date.now(),
@@ -462,6 +466,10 @@ function App() {
         <button title="Snap bottom right" onClick={() => snap("bottom-right")}><CornerDownRight size={15} /></button>
         <span>Move: Ctrl+Alt+Arrows</span>
       </section>
+
+      {viewMode !== "stealth" && <section className="imageStatus">
+        {lastImageStatus}
+      </section>}
 
       {viewMode !== "stealth" && (
         <section className="viewSwitcher" aria-label="View mode">

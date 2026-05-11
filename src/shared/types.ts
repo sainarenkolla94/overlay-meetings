@@ -31,6 +31,8 @@ export type AnalyzeResult = {
   answer: string;
   screenshotDataUrl?: string;
   teamsDetected: boolean;
+  sentImageToProvider: boolean;
+  imageProvider: AppSettings["provider"];
 };
 
 export type DesktopAudioSource = {

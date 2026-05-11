@@ -259,6 +259,13 @@ button:hover {
   font-size: 12px;
 }
 
+.imageStatus {
+  margin-bottom: 10px;
+  color: #aab7c6;
+  font-size: 11px;
+  text-align: right;
+}
+
 .dot {
   width: 8px;
   height: 8px;
