@@ -515,8 +515,8 @@ Before solving, silently read the screenshot. If you can see a coding problem, s
   const inlineData = screenshotDataUrl && settings.sendScreenshotToGemini ? dataUrlToInlineData(screenshotDataUrl) : undefined;
   if (inlineData) {
     parts.unshift({
-      inlineData: {
-        mimeType: inlineData.mimeType,
+      inline_data: {
+        mime_type: inlineData.mimeType,
         data: inlineData.data
       }
     });
