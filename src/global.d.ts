@@ -2,7 +2,10 @@ import type {
   AnalyzeInput,
   AnalyzeResult,
   AppSettings,
+  DesktopAudioSource,
   TeamsStatus,
+  TranscribeAudioInput,
+  TranscribeAudioResult,
   WindowNudgeDirection,
   WindowSnapPosition
 } from "./shared/types";
@@ -13,6 +16,8 @@ declare global {
       getSettings: () => Promise<AppSettings>;
       saveSettings: (settings: AppSettings) => Promise<AppSettings>;
       analyzeNow: (input: AnalyzeInput) => Promise<AnalyzeResult>;
+      getDesktopAudioSources: () => Promise<DesktopAudioSource[]>;
+      transcribeAudio: (input: TranscribeAudioInput) => Promise<TranscribeAudioResult>;
       getTeamsStatus: () => Promise<TeamsStatus>;
       setClickThrough: (enabled: boolean) => Promise<void>;
       setResizable: (enabled: boolean) => Promise<void>;

@@ -7,7 +7,10 @@ import type {
   AnalyzeInput,
   AnalyzeResult,
   AppSettings,
+  DesktopAudioSource,
   TeamsStatus,
+  TranscribeAudioInput,
+  TranscribeAudioResult,
   WindowNudgeDirection,
   WindowSnapPosition
 } from "../shared/types.js";
@@ -217,6 +220,52 @@ async function capturePrimaryScreen(): Promise<string | undefined> {
   return source?.thumbnail.toDataURL();
 }
 
+async function getDesktopAudioSources(): Promise<DesktopAudioSource[]> {
+  const sources = await desktopCapturer.getSources({
+    types: ["screen"],
+    thumbnailSize: { width: 1, height: 1 }
+  });
+
+  return sources.map((source) => ({
+    id: source.id,
+    name: source.name
+  }));
+}
+
+function base64ToFile(base64Audio: string, mimeType: string) {
+  const bytes = Buffer.from(base64Audio, "base64");
+  const extension = mimeType.includes("webm") ? "webm" : mimeType.includes("mp4") ? "mp4" : "wav";
+  const blob = new Blob([bytes], { type: mimeType });
+  return new File([blob], `audio-chunk.${extension}`, { type: mimeType });
+}
+
+async function transcribeAudio(input: TranscribeAudioInput): Promise<TranscribeAudioResult> {
+  if (!cachedSettings.openAiApiKey) {
+    throw new Error("OpenAI API key is required for audio transcription. You can still use OpenRouter for answer generation.");
+  }
+
+  const body = new FormData();
+  body.append("model", cachedSettings.transcriptionModel);
+  body.append("file", base64ToFile(input.base64Audio, input.mimeType));
+  body.append("response_format", "json");
+
+  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${cachedSettings.openAiApiKey}`
+    },
+    body
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Transcription failed: ${response.status} ${text}`);
+  }
+
+  const data = (await response.json()) as { text?: string };
+  return { text: data.text?.trim() ?? "" };
+}
+
 function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings) {
   const modeInstruction =
     input.mode === "coding"
@@ -388,6 +437,10 @@ ipcMain.handle("settings:save", (_event, settings: AppSettings) => {
 });
 
 ipcMain.handle("teams:status", () => getTeamsStatus());
+
+ipcMain.handle("audio:sources", () => getDesktopAudioSources());
+
+ipcMain.handle("audio:transcribe", (_event, input: TranscribeAudioInput) => transcribeAudio(input));
 
 ipcMain.handle("window:click-through", (_event, enabled: boolean) => {
   overlayWindow?.setIgnoreMouseEvents(enabled, { forward: true });

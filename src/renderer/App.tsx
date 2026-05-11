@@ -10,6 +10,7 @@ import {
   Eye,
   EyeOff,
   GalleryVerticalEnd,
+  Headphones,
   KeyRound,
   Lock,
   Mic,
@@ -24,7 +25,14 @@ import {
   X
 } from "lucide-react";
 import { createRoot } from "react-dom/client";
-import type { AnalyzeResult, AppSettings, AssistantStatus, TeamsStatus, WindowSnapPosition } from "../shared/types";
+import type {
+  AnalyzeResult,
+  AppSettings,
+  AssistantStatus,
+  DesktopAudioSource,
+  TeamsStatus,
+  WindowSnapPosition
+} from "../shared/types";
 import "./styles.css";
 
 const defaultSettings: AppSettings = {
@@ -61,6 +69,8 @@ const overlayApi =
         "Electron preload is not connected in browser preview. Run npm run dev to use screen capture, Teams detection, and OpenAI analysis.",
       teamsDetected: false
     }),
+    getDesktopAudioSources: async () => [],
+    transcribeAudio: async () => ({ text: "" }),
     getTeamsStatus: async () => ({
       detected: false,
       platform: navigator.platform.toLowerCase().includes("win") ? "win32" : "darwin",
@@ -97,11 +107,14 @@ function App() {
   const [lastCapture, setLastCapture] = useState<string | undefined>();
   const [error, setError] = useState("");
   const [autoAnalyze, setAutoAnalyze] = useState(false);
+  const [systemAudioListening, setSystemAudioListening] = useState(false);
   const [compact, setCompact] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("full");
   const [resizeLocked, setResizeLocked] = useState(true);
   const [history, setHistory] = useState<SuggestionItem[]>([]);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const systemAudioRecorderRef = useRef<MediaRecorder | null>(null);
+  const systemAudioStreamRef = useRef<MediaStream | null>(null);
   const transcriptRef = useRef(transcript);
   const modeRef = useRef(mode);
   const autoAnalyzeRef = useRef(autoAnalyze);
@@ -144,6 +157,7 @@ function App() {
       removeToggle();
       window.clearInterval(interval);
       recognitionRef.current?.stop();
+      stopSystemAudio();
     };
   }, []);
 
@@ -237,6 +251,109 @@ function App() {
     recognitionRef.current = recognition;
     recognition.start();
     setStatus("listening");
+  }
+
+  async function blobToBase64(blob: Blob) {
+    const buffer = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte);
+    }
+    return window.btoa(binary);
+  }
+
+  function appendTranscript(source: "system" | "mic", text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const label = source === "system" ? "Interviewer/System" : "Mic";
+    setTranscript((previous) => `${previous}\n[${label}] ${trimmed}`.trim());
+  }
+
+  async function transcribeAudioChunk(blob: Blob, source: "system" | "mic") {
+    if (!blob.size) return;
+    try {
+      const result = await overlayApi.transcribeAudio({
+        base64Audio: await blobToBase64(blob),
+        mimeType: blob.type || "audio/webm",
+        source
+      });
+      appendTranscript(source, result.text);
+    } catch (err) {
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Audio transcription failed.");
+      if (source === "system") stopSystemAudio();
+    }
+  }
+
+  async function startSystemAudio() {
+    setError("");
+    try {
+      const sources: DesktopAudioSource[] = await overlayApi.getDesktopAudioSources();
+      const source = sources[0];
+      if (!source) {
+        throw new Error("No desktop audio source found.");
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          mandatory: {
+            chromeMediaSource: "desktop",
+            chromeMediaSourceId: source.id
+          }
+        },
+        video: {
+          mandatory: {
+            chromeMediaSource: "desktop",
+            chromeMediaSourceId: source.id,
+            maxWidth: 1,
+            maxHeight: 1
+          }
+        }
+      } as MediaStreamConstraints);
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : "audio/webm";
+      const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 });
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          void transcribeAudioChunk(event.data, "system");
+        }
+      };
+      recorder.onerror = () => {
+        setStatus("error");
+        setError("System audio recorder failed.");
+        stopSystemAudio();
+      };
+
+      systemAudioStreamRef.current = stream;
+      systemAudioRecorderRef.current = recorder;
+      recorder.start(9000);
+      setSystemAudioListening(true);
+      setStatus("listening");
+    } catch (err) {
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Could not start system audio capture.");
+      stopSystemAudio();
+    }
+  }
+
+  function stopSystemAudio() {
+    systemAudioRecorderRef.current?.state !== "inactive" && systemAudioRecorderRef.current?.stop();
+    systemAudioRecorderRef.current = null;
+    systemAudioStreamRef.current?.getTracks().forEach((track) => track.stop());
+    systemAudioStreamRef.current = null;
+    setSystemAudioListening(false);
+    setStatus((current) => (current === "listening" ? "idle" : current));
+  }
+
+  async function toggleSystemAudio() {
+    if (systemAudioListening) {
+      stopSystemAudio();
+      return;
+    }
+    await startSystemAudio();
   }
 
   async function toggleClickThrough() {
@@ -362,6 +479,10 @@ function App() {
         <button className={autoAnalyze ? "active" : ""} onClick={() => setAutoAnalyze((enabled) => !enabled)}>
           <Timer size={17} />
           Auto
+        </button>
+        <button className={systemAudioListening ? "active" : ""} onClick={toggleSystemAudio}>
+          <Headphones size={17} />
+          Audio
         </button>
         <button onClick={toggleMic}>
           {status === "listening" ? <Pause size={17} /> : <Mic size={17} />}

@@ -26,6 +26,21 @@ export type AnalyzeResult = {
   teamsDetected: boolean;
 };
 
+export type DesktopAudioSource = {
+  id: string;
+  name: string;
+};
+
+export type TranscribeAudioInput = {
+  base64Audio: string;
+  mimeType: string;
+  source: "system" | "mic";
+};
+
+export type TranscribeAudioResult = {
+  text: string;
+};
+
 export type TeamsStatus = {
   detected: boolean;
   platform: NodeJS.Platform;

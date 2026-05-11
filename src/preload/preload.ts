@@ -1,10 +1,18 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { AnalyzeInput, AppSettings, WindowNudgeDirection, WindowSnapPosition } from "../shared/types.js";
+import type {
+  AnalyzeInput,
+  AppSettings,
+  TranscribeAudioInput,
+  WindowNudgeDirection,
+  WindowSnapPosition
+} from "../shared/types.js";
 
 contextBridge.exposeInMainWorld("overlayApi", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:save", settings),
   analyzeNow: (input: AnalyzeInput) => ipcRenderer.invoke("assistant:analyze", input),
+  getDesktopAudioSources: () => ipcRenderer.invoke("audio:sources"),
+  transcribeAudio: (input: TranscribeAudioInput) => ipcRenderer.invoke("audio:transcribe", input),
   getTeamsStatus: () => ipcRenderer.invoke("teams:status"),
   setClickThrough: (enabled: boolean) => ipcRenderer.invoke("window:click-through", enabled),
   setResizable: (enabled: boolean) => ipcRenderer.invoke("window:resizable", enabled),

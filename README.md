@@ -16,6 +16,7 @@ Implemented:
 - Primary screen capture using Electron `desktopCapturer`.
 - OpenAI Responses API integration using screenshot + transcript context.
 - OpenRouter chat completions integration with optional screenshot sending.
+- Experimental desktop/system audio capture with OpenAI transcription.
 - Assistant modes: coding, behavioral, and meeting.
 - Manual analyze hotkey.
 - Auto-analyze toggle with configurable interval.
@@ -27,8 +28,7 @@ Implemented:
 
 Not implemented yet:
 
-- Windows WASAPI system audio capture.
-- Reliable live meeting transcription.
+- Native Windows WASAPI helper.
 - Automatic question detection.
 - Strong native `SetWindowDisplayAffinity` helper.
 - Zoom-specific support.
@@ -43,6 +43,8 @@ Not implemented yet:
   - Optional: OpenRouter API key for free-model testing.
 
 ChatGPT Plus is not enough for automated app usage. This app needs an API key because it calls model APIs directly.
+
+Audio transcription currently requires an OpenAI API key even when the answer provider is OpenRouter. OpenRouter can still generate answers, but it does not transcribe audio in this prototype.
 
 ## Setup
 
@@ -136,6 +138,29 @@ Use this flow on the Windows laptop:
 6. Check whether the overlay returns a useful suggestion.
 
 You can also click `Auto` to rerun analysis periodically. The interval is controlled in Settings by `Auto analyze interval seconds`. Keep this conservative when using rate-limited free models.
+
+## Audio Testing
+
+The `Audio` button attempts to capture desktop/system audio and transcribe it into the transcript box.
+
+Current behavior:
+
+- Requires an OpenAI API key.
+- Uses the `Transcription model` setting, defaulting to `gpt-4o-mini-transcribe`.
+- Appends transcribed audio as `[Interviewer/System] ...`.
+- Works best on Windows when desktop audio capture is available.
+
+Test flow:
+
+1. Add an OpenAI API key in Settings.
+2. Open Teams and join a test meeting.
+3. Click `Audio`.
+4. Have the meeting audio play through your speakers/headphones.
+5. Wait around 9-12 seconds for the first chunk to transcribe.
+6. Confirm text appears in Recent transcript.
+7. Click `Analyze` or enable `Auto`.
+
+If audio capture fails, the next planned implementation is a native Windows WASAPI loopback helper.
 
 Report these results after testing:
 
@@ -231,9 +256,9 @@ Important files:
 
 Recommended next implementation order:
 
-1. Add Windows WASAPI loopback capture for Teams/system audio.
-2. Add OpenAI or local transcription for system audio chunks.
-3. Add rolling transcript buffer.
+1. Replace experimental desktop audio capture with native Windows WASAPI loopback.
+2. Add local Whisper transcription option.
+3. Add rolling transcript buffer controls.
 4. Add automatic question detection.
 5. Add native Windows `SetWindowDisplayAffinity` helper.
 6. Add document upload for resume/job description context.
