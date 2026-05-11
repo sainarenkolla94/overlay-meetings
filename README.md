@@ -101,7 +101,7 @@ gemini-2.5-flash
 
 5. Keep `Send screenshot to Gemini` enabled for screen-reading tests.
 
-6. Press `Analyze`.
+6. If Gemini says it cannot see the problem, choose the exact browser/window/screen from `Capture source` in Settings, then press `Analyze` again.
 
 Gemini mode calls:
 
@@ -159,6 +159,18 @@ To reduce visible cursor movement during screen sharing:
 8. Use click-through mode when you do not need to interact with the overlay.
 
 The resize lock avoids accidental resize cursors around the window border. Compact mode also disables resizing while it is active.
+
+## Capture Source
+
+By default, the app captures the primary screen. If your coding problem is on another monitor or in a specific browser window:
+
+1. Open Settings.
+2. Click `Refresh capture sources`.
+3. Choose the screen or window that contains the problem.
+4. Save.
+5. Press `Analyze`.
+
+Use `Last screen capture` to confirm the app is actually seeing the right content.
 
 ## Teams Test Flow
 

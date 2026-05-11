@@ -28,6 +28,7 @@ import { createRoot } from "react-dom/client";
 import type {
   AnalyzeResult,
   AppSettings,
+  CaptureSource,
   AssistantStatus,
   DesktopAudioSource,
   TeamsStatus,
@@ -53,6 +54,7 @@ const defaultSettings: AppSettings = {
   triggerHotkey: "CommandOrControl+Shift+Space",
   hideHotkey: "CommandOrControl+Shift+H",
   autoAnalyzeIntervalSeconds: 20,
+  captureSourceId: "",
   captureMode: "screen"
 };
 
@@ -75,6 +77,7 @@ const overlayApi =
         "Electron preload is not connected in browser preview. Run npm run dev to use screen capture, Teams detection, and OpenAI analysis.",
       teamsDetected: false
     }),
+    getCaptureSources: async () => [],
     getDesktopAudioSources: async () => [],
     transcribeAudio: async () => ({ text: "" }),
     getTeamsStatus: async () => ({
@@ -109,6 +112,7 @@ function App() {
   const [transcript, setTranscript] = useState("");
   const [answer, setAnswer] = useState("Press Analyze after joining a Teams meeting or when a coding problem is visible on screen.");
   const [teamsStatus, setTeamsStatus] = useState<TeamsStatus | null>(null);
+  const [captureSources, setCaptureSources] = useState<CaptureSource[]>([]);
   const [clickThrough, setClickThrough] = useState(false);
   const [lastCapture, setLastCapture] = useState<string | undefined>();
   const [error, setError] = useState("");
@@ -155,6 +159,7 @@ function App() {
       setDraftSettings(loaded);
     });
     refreshTeamsStatus();
+    refreshCaptureSources();
     void overlayApi.setResizable(false);
 
     const removeAnalyze = overlayApi.onAnalyzeShortcut(() => {
@@ -188,6 +193,11 @@ function App() {
   async function refreshTeamsStatus() {
     const current = await overlayApi.getTeamsStatus();
     setTeamsStatus(current);
+  }
+
+  async function refreshCaptureSources() {
+    const sources = await overlayApi.getCaptureSources();
+    setCaptureSources(sources);
   }
 
   async function saveSettings() {
@@ -673,6 +683,22 @@ function App() {
                 placeholder="AIza..."
               />
             </label>
+            <label>
+              Capture source
+              <select
+                value={draftSettings.captureSourceId}
+                onFocus={refreshCaptureSources}
+                onChange={(event) => setDraftSettings({ ...draftSettings, captureSourceId: event.target.value })}
+              >
+                <option value="">Primary screen</option>
+                {captureSources.map((source) => (
+                  <option key={source.id} value={source.id}>
+                    {source.type}: {source.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" onClick={refreshCaptureSources}>Refresh capture sources</button>
             <label>
               Gemini model
               <input

@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld("overlayApi", {
   getSettings: () => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: AppSettings) => ipcRenderer.invoke("settings:save", settings),
   analyzeNow: (input: AnalyzeInput) => ipcRenderer.invoke("assistant:analyze", input),
+  getCaptureSources: () => ipcRenderer.invoke("capture:sources"),
   getDesktopAudioSources: () => ipcRenderer.invoke("audio:sources"),
   transcribeAudio: (input: TranscribeAudioInput) => ipcRenderer.invoke("audio:transcribe", input),
   getTeamsStatus: () => ipcRenderer.invoke("teams:status"),

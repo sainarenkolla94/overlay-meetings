@@ -7,6 +7,7 @@ import type {
   AnalyzeInput,
   AnalyzeResult,
   AppSettings,
+  CaptureSource,
   DesktopAudioSource,
   TeamsStatus,
   TranscribeAudioInput,
@@ -36,6 +37,7 @@ const defaultSettings: AppSettings = {
   triggerHotkey: "CommandOrControl+Shift+Space",
   hideHotkey: "CommandOrControl+Shift+H",
   autoAnalyzeIntervalSeconds: 20,
+  captureSourceId: "",
   captureMode: "screen"
 };
 
@@ -214,16 +216,33 @@ async function getTeamsStatus(): Promise<TeamsStatus> {
 
 async function capturePrimaryScreen(): Promise<string | undefined> {
   const primary = screen.getPrimaryDisplay();
+  const displaySize = {
+    width: Math.round(primary.size.width * primary.scaleFactor),
+    height: Math.round(primary.size.height * primary.scaleFactor)
+  };
   const sources = await desktopCapturer.getSources({
-    types: ["screen"],
-    thumbnailSize: {
-      width: Math.round(primary.size.width * primary.scaleFactor),
-      height: Math.round(primary.size.height * primary.scaleFactor)
-    }
+    types: ["screen", "window"],
+    thumbnailSize: displaySize
   });
 
-  const source = sources.find((item) => item.display_id === String(primary.id)) ?? sources[0];
+  const source =
+    sources.find((item) => item.id === cachedSettings.captureSourceId) ??
+    sources.find((item) => item.display_id === String(primary.id)) ??
+    sources[0];
   return source?.thumbnail.toDataURL();
+}
+
+async function getCaptureSources(): Promise<CaptureSource[]> {
+  const sources = await desktopCapturer.getSources({
+    types: ["screen", "window"],
+    thumbnailSize: { width: 240, height: 160 }
+  });
+
+  return sources.map((source) => ({
+    id: source.id,
+    name: source.name,
+    type: source.id.startsWith("screen:") ? "screen" : "window"
+  }));
 }
 
 async function getDesktopAudioSources(): Promise<DesktopAudioSource[]> {
@@ -562,6 +581,8 @@ ipcMain.handle("settings:save", (_event, settings: AppSettings) => {
 });
 
 ipcMain.handle("teams:status", () => getTeamsStatus());
+
+ipcMain.handle("capture:sources", () => getCaptureSources());
 
 ipcMain.handle("audio:sources", () => getDesktopAudioSources());
 

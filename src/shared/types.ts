@@ -18,6 +18,7 @@ export type AppSettings = {
   triggerHotkey: string;
   hideHotkey: string;
   autoAnalyzeIntervalSeconds: number;
+  captureSourceId: string;
   captureMode: "screen";
 };
 
@@ -35,6 +36,12 @@ export type AnalyzeResult = {
 export type DesktopAudioSource = {
   id: string;
   name: string;
+};
+
+export type CaptureSource = {
+  id: string;
+  name: string;
+  type: "screen" | "window";
 };
 
 export type TranscribeAudioInput = {
