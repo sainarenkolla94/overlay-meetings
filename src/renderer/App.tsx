@@ -37,12 +37,18 @@ import "./styles.css";
 
 const defaultSettings: AppSettings = {
   provider: "openai",
+  transcriptionProvider: "openai",
   openAiApiKey: "",
   openRouterApiKey: "",
+  geminiApiKey: "",
+  groqApiKey: "",
   model: "gpt-4.1-mini",
   openRouterModel: "google/gemma-4-26b-a4b-it:free",
+  geminiModel: "gemini-2.5-flash",
   sendScreenshotToOpenRouter: true,
+  sendScreenshotToGemini: true,
   transcriptionModel: "gpt-4o-mini-transcribe",
+  groqTranscriptionModel: "whisper-large-v3-turbo",
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
   hideHotkey: "CommandOrControl+Shift+H",
@@ -133,7 +139,12 @@ function App() {
   }, [autoAnalyze]);
 
   const maskedKey = useMemo(() => {
-    const key = settings.provider === "openrouter" ? settings.openRouterApiKey : settings.openAiApiKey;
+    const key =
+      settings.provider === "openrouter"
+        ? settings.openRouterApiKey
+        : settings.provider === "gemini"
+          ? settings.geminiApiKey
+          : settings.openAiApiKey;
     if (!key) return "No API key";
     return `${key.slice(0, 7)}...${key.slice(-4)}`;
   }, [settings.openAiApiKey, settings.openRouterApiKey, settings.provider]);
@@ -541,7 +552,7 @@ function App() {
 
       {!compact && <footer className="footer">
         <span><KeyRound size={14} /> {settings.triggerHotkey}</span>
-        <span><CheckCircle2 size={14} /> {settings.provider} · {maskedKey}</span>
+        <span><CheckCircle2 size={14} /> {settings.provider} · STT {settings.transcriptionProvider} · {maskedKey}</span>
       </footer>}
 
       {!compact && lastCapture && (
@@ -570,6 +581,7 @@ function App() {
               >
                 <option value="openai">OpenAI</option>
                 <option value="openrouter">OpenRouter</option>
+                <option value="gemini">Gemini</option>
               </select>
             </label>
             <label>
@@ -604,6 +616,44 @@ function App() {
                 onChange={(event) => setDraftSettings({ ...draftSettings, openRouterModel: event.target.value })}
               />
             </label>
+            <label>
+              Transcription provider
+              <select
+                value={draftSettings.transcriptionProvider}
+                onChange={(event) =>
+                  setDraftSettings({
+                    ...draftSettings,
+                    transcriptionProvider: event.target.value as AppSettings["transcriptionProvider"]
+                  })
+                }
+              >
+                <option value="openai">OpenAI</option>
+                <option value="groq">Groq</option>
+              </select>
+            </label>
+            <label>
+              OpenAI transcription model
+              <input
+                value={draftSettings.transcriptionModel}
+                onChange={(event) => setDraftSettings({ ...draftSettings, transcriptionModel: event.target.value })}
+              />
+            </label>
+            <label>
+              Groq API key
+              <input
+                type="password"
+                value={draftSettings.groqApiKey}
+                onChange={(event) => setDraftSettings({ ...draftSettings, groqApiKey: event.target.value })}
+                placeholder="gsk_..."
+              />
+            </label>
+            <label>
+              Groq transcription model
+              <input
+                value={draftSettings.groqTranscriptionModel}
+                onChange={(event) => setDraftSettings({ ...draftSettings, groqTranscriptionModel: event.target.value })}
+              />
+            </label>
             <label className="checkboxRow">
               <input
                 type="checkbox"
@@ -613,6 +663,32 @@ function App() {
                 }
               />
               Send screenshot to OpenRouter
+            </label>
+            <label>
+              Gemini API key
+              <input
+                type="password"
+                value={draftSettings.geminiApiKey}
+                onChange={(event) => setDraftSettings({ ...draftSettings, geminiApiKey: event.target.value })}
+                placeholder="AIza..."
+              />
+            </label>
+            <label>
+              Gemini model
+              <input
+                value={draftSettings.geminiModel}
+                onChange={(event) => setDraftSettings({ ...draftSettings, geminiModel: event.target.value })}
+              />
+            </label>
+            <label className="checkboxRow">
+              <input
+                type="checkbox"
+                checked={draftSettings.sendScreenshotToGemini}
+                onChange={(event) =>
+                  setDraftSettings({ ...draftSettings, sendScreenshotToGemini: event.target.checked })
+                }
+              />
+              Send screenshot to Gemini
             </label>
             <label>
               Preferred coding language

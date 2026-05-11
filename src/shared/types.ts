@@ -1,13 +1,19 @@
 export type AssistantStatus = "idle" | "listening" | "analyzing" | "ready" | "error";
 
 export type AppSettings = {
-  provider: "openai" | "openrouter";
+  provider: "openai" | "openrouter" | "gemini";
+  transcriptionProvider: "openai" | "groq";
   openAiApiKey: string;
   openRouterApiKey: string;
+  geminiApiKey: string;
+  groqApiKey: string;
   model: string;
   openRouterModel: string;
+  geminiModel: string;
   sendScreenshotToOpenRouter: boolean;
+  sendScreenshotToGemini: boolean;
   transcriptionModel: string;
+  groqTranscriptionModel: string;
   preferredLanguage: string;
   triggerHotkey: string;
   hideHotkey: string;

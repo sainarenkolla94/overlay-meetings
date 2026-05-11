@@ -20,12 +20,18 @@ const isDev = !app.isPackaged;
 
 const defaultSettings: AppSettings = {
   provider: "openai",
+  transcriptionProvider: "openai",
   openAiApiKey: "",
   openRouterApiKey: "",
+  geminiApiKey: "",
+  groqApiKey: "",
   model: "gpt-4.1-mini",
   openRouterModel: "google/gemma-4-26b-a4b-it:free",
+  geminiModel: "gemini-2.5-flash",
   sendScreenshotToOpenRouter: true,
+  sendScreenshotToGemini: true,
   transcriptionModel: "gpt-4o-mini-transcribe",
+  groqTranscriptionModel: "whisper-large-v3-turbo",
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
   hideHotkey: "CommandOrControl+Shift+H",
@@ -239,9 +245,26 @@ function base64ToFile(base64Audio: string, mimeType: string) {
   return new File([blob], `audio-chunk.${extension}`, { type: mimeType });
 }
 
+function dataUrlToInlineData(dataUrl: string) {
+  const match = /^data:(?<mimeType>[^;]+);base64,(?<data>.+)$/.exec(dataUrl);
+  if (!match?.groups) return undefined;
+  return {
+    mimeType: match.groups.mimeType,
+    data: match.groups.data
+  };
+}
+
 async function transcribeAudio(input: TranscribeAudioInput): Promise<TranscribeAudioResult> {
+  if (cachedSettings.transcriptionProvider === "groq") {
+    return transcribeWithGroq(input);
+  }
+
+  return transcribeWithOpenAi(input);
+}
+
+async function transcribeWithOpenAi(input: TranscribeAudioInput): Promise<TranscribeAudioResult> {
   if (!cachedSettings.openAiApiKey) {
-    throw new Error("OpenAI API key is required for audio transcription. You can still use OpenRouter for answer generation.");
+    throw new Error("OpenAI API key is required for OpenAI audio transcription. Switch transcription provider to Groq to use a Groq API key.");
   }
 
   const body = new FormData();
@@ -260,6 +283,33 @@ async function transcribeAudio(input: TranscribeAudioInput): Promise<TranscribeA
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Transcription failed: ${response.status} ${text}`);
+  }
+
+  const data = (await response.json()) as { text?: string };
+  return { text: data.text?.trim() ?? "" };
+}
+
+async function transcribeWithGroq(input: TranscribeAudioInput): Promise<TranscribeAudioResult> {
+  if (!cachedSettings.groqApiKey) {
+    throw new Error("Groq API key is required for Groq audio transcription.");
+  }
+
+  const body = new FormData();
+  body.append("model", cachedSettings.groqTranscriptionModel);
+  body.append("file", base64ToFile(input.base64Audio, input.mimeType));
+  body.append("response_format", "json");
+
+  const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${cachedSettings.groqApiKey}`
+    },
+    body
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Groq transcription failed: ${response.status} ${text}`);
   }
 
   const data = (await response.json()) as { text?: string };
@@ -428,6 +478,81 @@ Raw response:
 ${JSON.stringify(data, null, 2).slice(0, 1200)}`;
 }
 
+async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string) {
+  if (!settings.geminiApiKey) {
+    return "Add your Gemini API key in Settings, then press Analyze again.";
+  }
+
+  const parts: Array<Record<string, unknown>> = [
+    {
+      text: `${buildAssistantPrompt(input, settings)}
+
+Provider note: Gemini mode is enabled. Use the transcript/manual context and screenshot together when available. Keep the response compact for an overlay.`
+    }
+  ];
+
+  const inlineData = screenshotDataUrl && settings.sendScreenshotToGemini ? dataUrlToInlineData(screenshotDataUrl) : undefined;
+  if (inlineData) {
+    parts.unshift({
+      inline_data: {
+        mime_type: inlineData.mimeType,
+        data: inlineData.data
+      }
+    });
+  }
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.geminiModel)}:generateContent`,
+    {
+      method: "POST",
+      headers: {
+        "x-goog-api-key": settings.geminiApiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts
+          }
+        ],
+        generationConfig: {
+          temperature: 0.3,
+          maxOutputTokens: 900
+        }
+      })
+    }
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Gemini request failed: ${response.status} ${text}`);
+  }
+
+  const data = (await response.json()) as {
+    candidates?: Array<{
+      finishReason?: string;
+      content?: {
+        parts?: Array<{ text?: string }>;
+      };
+    }>;
+    error?: { message?: string };
+  };
+
+  if (data.error) {
+    throw new Error(`Gemini error: ${data.error.message ?? "unknown error"}`);
+  }
+
+  const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join("\n").trim();
+  if (text) return text;
+
+  const finishReason = data.candidates?.[0]?.finishReason ? ` Finish reason: ${data.candidates[0].finishReason}.` : "";
+  return `Gemini returned no message content.${finishReason}
+
+Raw response:
+${JSON.stringify(data, null, 2).slice(0, 1200)}`;
+}
+
 ipcMain.handle("settings:get", () => cachedSettings);
 
 ipcMain.handle("settings:save", (_event, settings: AppSettings) => {
@@ -474,7 +599,9 @@ ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise
   const answer =
     settings.provider === "openrouter"
       ? await callOpenRouter(settings, input, screenshotDataUrl)
-      : await callOpenAi(settings, input, screenshotDataUrl);
+      : settings.provider === "gemini"
+        ? await callGemini(settings, input, screenshotDataUrl)
+        : await callOpenAi(settings, input, screenshotDataUrl);
 
   return {
     answer,

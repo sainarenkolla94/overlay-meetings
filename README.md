@@ -12,11 +12,13 @@ Implemented:
 - Always-on-top overlay window.
 - Settings panel for OpenAI API key, model, language, and hotkeys.
 - Provider selection for OpenAI or OpenRouter.
+- Gemini answer provider support with optional screenshot sending.
 - Microsoft Teams process detection on Windows.
 - Primary screen capture using Electron `desktopCapturer`.
 - OpenAI Responses API integration using screenshot + transcript context.
 - OpenRouter chat completions integration with optional screenshot sending.
 - Experimental desktop/system audio capture with OpenAI transcription.
+- Groq transcription provider support.
 - Assistant modes: coding, behavioral, and meeting.
 - Manual analyze hotkey.
 - Auto-analyze toggle with configurable interval.
@@ -41,10 +43,12 @@ Not implemented yet:
 - Microsoft Teams desktop app for Windows testing.
 - OpenAI API key.
   - Optional: OpenRouter API key for free-model testing.
+  - Optional: Gemini API key for text/screenshot answer generation.
+  - Optional: Groq API key for free-tier speech-to-text testing.
 
 ChatGPT Plus is not enough for automated app usage. This app needs an API key because it calls model APIs directly.
 
-Audio transcription currently requires an OpenAI API key even when the answer provider is OpenRouter. OpenRouter can still generate answers, but it does not transcribe audio in this prototype.
+Audio transcription can use OpenAI or Groq. OpenRouter can still generate answers, but it does not transcribe audio in this prototype.
 
 ## Setup
 
@@ -74,6 +78,36 @@ This starts the Vite renderer and launches the Electron overlay.
 6. Save settings.
 
 Settings are stored locally in Electron's app user data directory. Do not commit API keys to GitHub.
+
+## Gemini Testing
+
+Gemini is useful for screenshot + transcript analysis.
+
+1. Create or copy a Gemini API key from Google AI Studio:
+
+```text
+https://aistudio.google.com/app/apikey
+```
+
+2. In app Settings, set Provider to `Gemini`.
+
+3. Paste the Gemini API key.
+
+4. Use the default model:
+
+```text
+gemini-2.5-flash
+```
+
+5. Keep `Send screenshot to Gemini` enabled for screen-reading tests.
+
+6. Press `Analyze`.
+
+Gemini mode calls:
+
+```text
+https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+```
 
 ## OpenRouter Testing
 
@@ -145,20 +179,31 @@ The `Audio` button attempts to capture desktop/system audio and transcribe it in
 
 Current behavior:
 
-- Requires an OpenAI API key.
-- Uses the `Transcription model` setting, defaulting to `gpt-4o-mini-transcribe`.
+- Requires either an OpenAI API key or a Groq API key.
+- Uses `Transcription provider` in Settings.
+- OpenAI default model: `gpt-4o-mini-transcribe`.
+- Groq default model: `whisper-large-v3-turbo`.
 - Appends transcribed audio as `[Interviewer/System] ...`.
 - Works best on Windows when desktop audio capture is available.
 
+Recommended low-cost test setup:
+
+```text
+Answer Provider: OpenRouter or Gemini
+Transcription Provider: Groq
+Groq transcription model: whisper-large-v3-turbo
+```
+
 Test flow:
 
-1. Add an OpenAI API key in Settings.
-2. Open Teams and join a test meeting.
-3. Click `Audio`.
-4. Have the meeting audio play through your speakers/headphones.
-5. Wait around 9-12 seconds for the first chunk to transcribe.
-6. Confirm text appears in Recent transcript.
-7. Click `Analyze` or enable `Auto`.
+1. Add an OpenAI or Groq API key in Settings.
+2. Set `Transcription provider` to `Groq` if using Groq.
+3. Open Teams and join a test meeting.
+4. Click `Audio`.
+5. Have the meeting audio play through your speakers/headphones.
+6. Wait around 9-12 seconds for the first chunk to transcribe.
+7. Confirm text appears in Recent transcript.
+8. Click `Analyze` or enable `Auto`.
 
 If audio capture fails, the next planned implementation is a native Windows WASAPI loopback helper.
 
@@ -238,6 +283,19 @@ Screenshot, if enabled
         |
         v
 OpenRouter chat completions
+        |
+        v
+Suggested answer in overlay
+```
+
+With Gemini selected:
+
+```text
+Screenshot, if enabled
++ transcript/manual context
+        |
+        v
+Gemini generateContent
         |
         v
 Suggested answer in overlay
