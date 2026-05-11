@@ -371,6 +371,14 @@ function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings) {
 
 Use the screenshot and recent transcript together. If a screenshot is attached, read the visible screen content directly even when the transcript is empty. Prioritize visible problem statements, code, examples, constraints, and error messages from the screenshot. Only say content is missing if neither the screenshot nor transcript contains enough detail.
 
+For coding questions, return a complete answer using this exact structure:
+Detected:
+Approach:
+Code:
+Complexity:
+Edge cases:
+Do not stop mid-sentence. Keep code compact but complete.
+
 Recent transcript:
 ${input.transcript || "(No transcript captured yet.)"}`;
 }
@@ -567,7 +575,10 @@ Before solving, silently read the screenshot. If you can see a coding problem, s
         ],
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 1400
+          maxOutputTokens: 4096,
+          thinkingConfig: {
+            thinkingBudget: 0
+          }
         }
       })
     }
@@ -592,10 +603,17 @@ Before solving, silently read the screenshot. If you can see a coding problem, s
     throw new Error(`Gemini error: ${data.error.message ?? "unknown error"}`);
   }
 
-  const text = data.candidates?.[0]?.content?.parts?.map((part) => part.text).filter(Boolean).join("\n").trim();
-  if (text) return text;
+  const firstCandidate = data.candidates?.[0];
+  const text = firstCandidate?.content?.parts?.map((part) => part.text).filter(Boolean).join("\n").trim();
+  if (text) {
+    return firstCandidate?.finishReason && firstCandidate.finishReason !== "STOP"
+      ? `${text}
 
-  const finishReason = data.candidates?.[0]?.finishReason ? ` Finish reason: ${data.candidates[0].finishReason}.` : "";
+[Gemini finish reason: ${firstCandidate.finishReason}]`
+      : text;
+  }
+
+  const finishReason = firstCandidate?.finishReason ? ` Finish reason: ${firstCandidate.finishReason}.` : "";
   return `Gemini returned no message content.${finishReason}
 
 Raw response:
