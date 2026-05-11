@@ -567,7 +567,7 @@ Before solving, silently read the screenshot. If you can see a coding problem, s
         ],
         generationConfig: {
           temperature: 0.3,
-          maxOutputTokens: 900
+          maxOutputTokens: 1400
         }
       })
     }

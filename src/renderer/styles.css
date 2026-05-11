@@ -242,6 +242,13 @@ button:hover {
   border-radius: 7px;
 }
 
+.smallTextButton {
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
 .active {
   color: #1c271f;
   background: #83f7c3;
@@ -357,7 +364,7 @@ button:hover {
 .answerPanel pre {
   margin: 0;
   min-height: 180px;
-  max-height: 260px;
+  max-height: min(48vh, 360px);
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
@@ -368,9 +375,17 @@ button:hover {
   line-height: 1.45;
 }
 
+.answerPanel pre.expandedAnswer {
+  max-height: calc(100vh - 220px);
+}
+
 .compactShell .answerPanel pre {
   min-height: 106px;
-  max-height: 126px;
+  max-height: 156px;
+}
+
+.compactShell .answerPanel pre.expandedAnswer {
+  max-height: 190px;
 }
 
 .compactShell .modeBar,

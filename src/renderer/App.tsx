@@ -122,6 +122,7 @@ function App() {
   const [autoAnalyze, setAutoAnalyze] = useState(false);
   const [systemAudioListening, setSystemAudioListening] = useState(false);
   const [compact, setCompact] = useState(false);
+  const [expandedAnswer, setExpandedAnswer] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("full");
   const [resizeLocked, setResizeLocked] = useState(true);
   const [history, setHistory] = useState<SuggestionItem[]>([]);
@@ -522,11 +523,16 @@ function App() {
       {viewMode !== "stealth" && <section className="answerPanel">
         <div className="panelHeader">
           <span>Suggestion</span>
-          <button title="Copy answer" onClick={copyAnswer} className="iconButton small">
-            <Clipboard size={15} />
-          </button>
+          <div className="panelActions">
+            <button title="Expand answer" onClick={() => setExpandedAnswer((expanded) => !expanded)} className="smallTextButton">
+              {expandedAnswer ? "Less" : "More"}
+            </button>
+            <button title="Copy answer" onClick={copyAnswer} className="iconButton small">
+              <Clipboard size={15} />
+            </button>
+          </div>
         </div>
-        {status === "analyzing" ? <div className="loader">Reading screen and transcript...</div> : <pre>{answer}</pre>}
+        {status === "analyzing" ? <div className="loader">Reading screen and transcript...</div> : <pre className={expandedAnswer ? "expandedAnswer" : ""}>{answer}</pre>}
         {error && <p className="error">{error}</p>}
       </section>}
 
