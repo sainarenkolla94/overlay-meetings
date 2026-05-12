@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import path from "node:path";
+import { createWorker } from "tesseract.js";
 import type {
   AnalyzeInput,
   AnalyzeResult,
@@ -45,6 +46,7 @@ let cachedSettings: AppSettings = { ...defaultSettings };
 let overlayWindow: BrowserWindow | null = null;
 const fullSize = { width: 430, height: 680 };
 const compactSize = { width: 360, height: 280 };
+let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null;
 
 function settingsPath() {
   return path.join(app.getPath("userData"), "settings.json");
@@ -297,6 +299,29 @@ function prepareScreenshotForProvider(dataUrl?: string) {
   };
 }
 
+async function getOcrWorker() {
+  if (!ocrWorker) {
+    ocrWorker = await createWorker("eng", 1, {
+      logger: () => undefined
+    });
+  }
+  return ocrWorker;
+}
+
+async function extractOcrText(screenshotDataUrl?: string) {
+  if (!screenshotDataUrl) return "";
+  try {
+    const prepared = prepareScreenshotForProvider(screenshotDataUrl);
+    if (!prepared) return "";
+    const worker = await getOcrWorker();
+    const result = await worker.recognize(prepared.dataUrl);
+    return result.data.text.replace(/\s+\n/g, "\n").trim().slice(0, 6000);
+  } catch (error) {
+    console.warn("OCR failed", error);
+    return "";
+  }
+}
+
 async function transcribeAudio(input: TranscribeAudioInput): Promise<TranscribeAudioResult> {
   if (cachedSettings.transcriptionProvider === "groq") {
     return transcribeWithGroq(input);
@@ -359,7 +384,7 @@ async function transcribeWithGroq(input: TranscribeAudioInput): Promise<Transcri
   return { text: data.text?.trim() ?? "" };
 }
 
-function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings) {
+function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings, ocrText = "") {
   const modeInstruction =
     input.mode === "coding"
       ? `You are a discreet coding interview assistant. Produce a concise answer for the overlay. Prefer ${settings.preferredLanguage}. Include: key idea, steps, edge cases, time and space complexity, and code only if enough detail is visible.`
@@ -380,16 +405,19 @@ Edge cases:
 Do not stop mid-sentence. Keep code compact but complete.
 
 Recent transcript:
-${input.transcript || "(No transcript captured yet.)"}`;
+${input.transcript || "(No transcript captured yet.)"}
+
+OCR extracted from screenshot:
+${ocrText || "(No OCR text extracted.)"}`;
 }
 
-async function callOpenAi(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string) {
+async function callOpenAi(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string, ocrText = "") {
   if (!settings.openAiApiKey) {
     return "Add your OpenAI API key in Settings, then press Analyze again.";
   }
 
   const content: Array<Record<string, string>> = [
-    { type: "input_text", text: buildAssistantPrompt(input, settings) }
+    { type: "input_text", text: buildAssistantPrompt(input, settings, ocrText) }
   ];
 
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
@@ -432,12 +460,12 @@ async function callOpenAi(settings: AppSettings, input: AnalyzeInput, screenshot
   );
 }
 
-async function callOpenRouter(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string) {
+async function callOpenRouter(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string, ocrText = "") {
   if (!settings.openRouterApiKey) {
     return "Add your OpenRouter API key in Settings, then press Analyze again.";
   }
 
-  const prompt = buildAssistantPrompt(input, settings);
+  const prompt = buildAssistantPrompt(input, settings, ocrText);
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   const userContent =
     settings.sendScreenshotToOpenRouter && preparedScreenshot
@@ -531,7 +559,7 @@ Raw response:
 ${JSON.stringify(data, null, 2).slice(0, 1200)}`;
 }
 
-async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string) {
+async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string, ocrText = "") {
   if (!settings.geminiApiKey) {
     return "Add your Gemini API key in Settings, then press Analyze again.";
   }
@@ -539,7 +567,7 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   const parts: Array<Record<string, unknown>> = [
     {
-      text: `${buildAssistantPrompt(input, settings)}
+      text: `${buildAssistantPrompt(input, settings, ocrText)}
 
 Provider note: Gemini mode is enabled. A screenshot image part is attached when screenshot sending is enabled. If the transcript is empty, inspect the screenshot and answer from the visible screen content.
 Screenshot status: ${settings.sendScreenshotToGemini && preparedScreenshot ? `attached as ${preparedScreenshot.mimeType}, ${preparedScreenshot.width}x${preparedScreenshot.height}` : "not attached"}.
@@ -665,6 +693,7 @@ ipcMain.handle("window:hide", () => {
 ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise<AnalyzeResult> => {
   const settings = cachedSettings;
   const [screenshotDataUrl, teams] = await Promise.all([capturePrimaryScreen(), getTeamsStatus()]);
+  const ocrText = await extractOcrText(screenshotDataUrl);
   const sentImageToProvider =
     Boolean(screenshotDataUrl) &&
     (settings.provider === "openai" ||
@@ -672,17 +701,18 @@ ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise
       (settings.provider === "gemini" && settings.sendScreenshotToGemini));
   const answer =
     settings.provider === "openrouter"
-      ? await callOpenRouter(settings, input, screenshotDataUrl)
+      ? await callOpenRouter(settings, input, screenshotDataUrl, ocrText)
       : settings.provider === "gemini"
-        ? await callGemini(settings, input, screenshotDataUrl)
-        : await callOpenAi(settings, input, screenshotDataUrl);
+        ? await callGemini(settings, input, screenshotDataUrl, ocrText)
+        : await callOpenAi(settings, input, screenshotDataUrl, ocrText);
 
   return {
     answer,
     screenshotDataUrl,
     teamsDetected: teams.detected,
     sentImageToProvider,
-    imageProvider: settings.provider
+    imageProvider: settings.provider,
+    ocrText
   };
 });
 
@@ -700,6 +730,7 @@ app.whenReady().then(() => {
 
 app.on("will-quit", () => {
   globalShortcut.unregisterAll();
+  void ocrWorker?.terminate();
 });
 
 app.on("window-all-closed", () => {

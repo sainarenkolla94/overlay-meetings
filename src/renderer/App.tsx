@@ -18,6 +18,7 @@ import {
   Pause,
   Play,
   RotateCcw,
+  Search,
   Settings,
   Sparkles,
   Timer,
@@ -77,7 +78,8 @@ const overlayApi =
         "Electron preload is not connected in browser preview. Run npm run dev to use screen capture, Teams detection, and OpenAI analysis.",
       teamsDetected: false,
       sentImageToProvider: false,
-      imageProvider: "openai"
+      imageProvider: "openai",
+      ocrText: ""
     }),
     getCaptureSources: async () => [],
     getDesktopAudioSources: async () => [],
@@ -118,8 +120,10 @@ function App() {
   const [clickThrough, setClickThrough] = useState(false);
   const [lastCapture, setLastCapture] = useState<string | undefined>();
   const [lastImageStatus, setLastImageStatus] = useState("No image sent yet");
+  const [lastOcrStatus, setLastOcrStatus] = useState("OCR not run yet");
   const [error, setError] = useState("");
   const [autoAnalyze, setAutoAnalyze] = useState(false);
+  const [questionDetect, setQuestionDetect] = useState(false);
   const [systemAudioListening, setSystemAudioListening] = useState(false);
   const [compact, setCompact] = useState(false);
   const [expandedAnswer, setExpandedAnswer] = useState(false);
@@ -132,6 +136,9 @@ function App() {
   const transcriptRef = useRef(transcript);
   const modeRef = useRef(mode);
   const autoAnalyzeRef = useRef(autoAnalyze);
+  const questionDetectRef = useRef(questionDetect);
+  const lastQuestionAnalyzeAtRef = useRef(0);
+  const lastAnalyzedTranscriptRef = useRef("");
   const analyzingRef = useRef(false);
 
   useEffect(() => {
@@ -146,6 +153,10 @@ function App() {
     autoAnalyzeRef.current = autoAnalyze;
   }, [autoAnalyze]);
 
+  useEffect(() => {
+    questionDetectRef.current = questionDetect;
+  }, [questionDetect]);
+
   const maskedKey = useMemo(() => {
     const key =
       settings.provider === "openrouter"
@@ -158,6 +169,14 @@ function App() {
   }, [settings.openAiApiKey, settings.openRouterApiKey, settings.provider]);
 
   useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        void cycleViewMode();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
     overlayApi.getSettings().then((loaded) => {
       setSettings(loaded);
       setDraftSettings(loaded);
@@ -176,6 +195,7 @@ function App() {
       removeAnalyze();
       removeToggle();
       window.clearInterval(interval);
+      window.removeEventListener("keydown", handleKeyDown);
       recognitionRef.current?.stop();
       stopSystemAudio();
     };
@@ -193,6 +213,80 @@ function App() {
 
     return () => window.clearInterval(interval);
   }, [autoAnalyze, settings.autoAnalyzeIntervalSeconds, settings.provider, settings.sendScreenshotToOpenRouter]);
+
+  useEffect(() => {
+    if (!questionDetect) return undefined;
+
+    const timeout = window.setTimeout(() => {
+      const currentTranscript = transcriptRef.current.trim();
+      if (!currentTranscript || analyzingRef.current) return;
+
+      const lastAnalyzed = lastAnalyzedTranscriptRef.current;
+      const newText = currentTranscript.slice(lastAnalyzed.length).trim();
+      const candidateText = newText.length >= 24 ? newText : currentTranscript.slice(-900);
+      const cooldownMs = Math.max(settings.autoAnalyzeIntervalSeconds, 12) * 1000;
+
+      if (Date.now() - lastQuestionAnalyzeAtRef.current < cooldownMs) return;
+      if (!isLikelyQuestion(candidateText, modeRef.current)) return;
+
+      lastQuestionAnalyzeAtRef.current = Date.now();
+      lastAnalyzedTranscriptRef.current = currentTranscript;
+      void analyze(currentTranscript, modeRef.current, "auto");
+    }, 1800);
+
+    return () => window.clearTimeout(timeout);
+  }, [transcript, questionDetect, settings.autoAnalyzeIntervalSeconds]);
+
+  function isLikelyQuestion(text: string, currentMode: Mode) {
+    const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
+    if (normalized.length < 24) return false;
+
+    const questionPhrases = [
+      "?",
+      "can you",
+      "could you",
+      "would you",
+      "how would",
+      "how do",
+      "what is",
+      "what are",
+      "why",
+      "explain",
+      "walk me through",
+      "tell me about",
+      "describe",
+      "design",
+      "debug",
+      "fix",
+      "implement",
+      "write",
+      "solve",
+      "approach",
+      "complexity",
+      "edge case",
+      "test case"
+    ];
+
+    if (questionPhrases.some((phrase) => normalized.includes(phrase))) return true;
+
+    if (currentMode === "coding") {
+      return [
+        "given an array",
+        "given a string",
+        "return the",
+        "find the",
+        "leetcode",
+        "time complexity",
+        "space complexity",
+        "binary tree",
+        "linked list",
+        "hash map",
+        "dynamic programming"
+      ].some((phrase) => normalized.includes(phrase));
+    }
+
+    return false;
+  }
 
   async function refreshTeamsStatus() {
     const current = await overlayApi.getTeamsStatus();
@@ -222,6 +316,7 @@ function App() {
       });
       setAnswer(result.answer);
       setLastImageStatus(result.sentImageToProvider ? `Image sent to ${result.imageProvider}` : `No image sent to ${result.imageProvider}`);
+      setLastOcrStatus(result.ocrText ? `OCR extracted ${result.ocrText.length} chars` : "OCR extracted no text");
       setHistory((previous) => [
         {
           id: Date.now(),
@@ -232,6 +327,7 @@ function App() {
         ...previous
       ].slice(0, 5));
       setLastCapture(result.screenshotDataUrl);
+      lastAnalyzedTranscriptRef.current = transcriptForRequest.trim();
       setStatus("ready");
       await refreshTeamsStatus();
     } catch (err) {
@@ -418,6 +514,10 @@ function App() {
     await overlayApi.setCompact(next !== "full");
   }
 
+  async function cycleViewMode() {
+    await setModeView(viewMode === "full" ? "glass" : viewMode === "glass" ? "stealth" : "full");
+  }
+
   async function copyAnswer() {
     await navigator.clipboard.writeText(answer);
   }
@@ -460,16 +560,16 @@ function App() {
         </div>
       </header>
 
-      <section className="snapBar" aria-label="Snap overlay">
+      {viewMode !== "stealth" && <section className="snapBar" aria-label="Snap overlay">
         <button title="Snap top left" onClick={() => snap("top-left")}><CornerUpLeft size={15} /></button>
         <button title="Snap top right" onClick={() => snap("top-right")}><CornerUpRight size={15} /></button>
         <button title="Snap bottom left" onClick={() => snap("bottom-left")}><CornerDownLeft size={15} /></button>
         <button title="Snap bottom right" onClick={() => snap("bottom-right")}><CornerDownRight size={15} /></button>
         <span>Move: Ctrl+Alt+Arrows</span>
-      </section>
+      </section>}
 
       {viewMode !== "stealth" && <section className="imageStatus">
-        {lastImageStatus}
+        {lastImageStatus} · {lastOcrStatus}
       </section>}
 
       {viewMode !== "stealth" && (
@@ -481,12 +581,14 @@ function App() {
       )}
 
       {viewMode === "stealth" ? (
-        <section className="stealthPill">
-          <span className={status === "ready" ? "dot ok" : "dot"} />
-          <strong>{status === "analyzing" ? "Analyzing..." : answer.slice(0, 92)}</strong>
-          <button title="Analyze" onClick={() => analyze()} disabled={status === "analyzing"}>
-            <Sparkles size={14} />
-          </button>
+        <section className="stealthAnswer">
+          <div className="stealthMeta">
+            <span className={status === "ready" ? "dot ok" : "dot"} />
+            <span>{status === "analyzing" ? "Analyzing" : mode}</span>
+            <button title="Analyze" onClick={() => analyze()} disabled={status === "analyzing"}>Analyze</button>
+            <button title="Switch view mode" onClick={cycleViewMode}>Full</button>
+          </div>
+          <pre>{status === "analyzing" ? "Reading screen and transcript..." : answer}</pre>
         </section>
       ) : null}
 
@@ -509,6 +611,10 @@ function App() {
         <button className={autoAnalyze ? "active" : ""} onClick={() => setAutoAnalyze((enabled) => !enabled)}>
           <Timer size={17} />
           Auto
+        </button>
+        <button className={questionDetect ? "active" : ""} onClick={() => setQuestionDetect((enabled) => !enabled)}>
+          <Search size={17} />
+          Detect
         </button>
         <button className={systemAudioListening ? "active" : ""} onClick={toggleSystemAudio}>
           <Headphones size={17} />

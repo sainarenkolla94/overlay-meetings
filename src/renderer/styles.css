@@ -77,7 +77,7 @@ button:hover {
 
 .stealthMode {
   min-height: 100vh;
-  padding: 8px;
+  padding: 7px;
   border-color: rgba(131, 247, 195, 0.16);
   background: rgba(8, 12, 14, 0.28);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.22);
@@ -179,42 +179,55 @@ button:hover {
 .stealthMode .snapBar,
 .stealthMode .titlebar {
   padding: 0;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 
 .stealthMode .brand div:not(.logo),
-.stealthMode .windowActions button:not(:nth-child(3)):not(:nth-child(4)) {
+.stealthMode .windowActions {
   display: none;
 }
 
-.stealthPill {
-  min-height: 52px;
-  display: grid;
-  grid-template-columns: 10px 1fr 32px;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 9px;
+.stealthAnswer {
+  height: calc(100vh - 47px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-  background: rgba(7, 10, 13, 0.42);
-}
-
-.stealthPill strong {
-  min-width: 0;
+  background: rgba(7, 10, 13, 0.34);
   overflow: hidden;
-  color: #f6fbff;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
 }
 
-.stealthPill button {
-  width: 32px;
-  min-height: 32px;
+.stealthMeta {
+  height: 28px;
+  display: grid;
+  grid-template-columns: 8px 1fr 58px 44px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 9px;
+  color: #aab7c6;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+
+.stealthMeta button {
+  width: 100%;
+  min-height: 22px;
   padding: 0;
+  border-radius: 6px;
+  color: #101615;
+  background: #83f7c3;
+  font-size: 11px;
+}
+
+.stealthAnswer pre {
+  height: calc(100% - 28px);
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 0 9px 10px;
+  color: #f6fbff;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.42;
 }
 
 .snapBar button {
@@ -305,13 +318,13 @@ button:hover {
 
 .controls {
   display: grid;
-  grid-template-columns: 1.2fr 0.85fr 0.85fr 0.75fr;
+  grid-template-columns: 1.15fr 0.82fr 0.92fr 0.82fr 0.75fr;
   gap: 8px;
 }
 
 .controls button {
   min-width: 0;
-  padding: 0 9px;
+  padding: 0 7px;
 }
 
 .primary {

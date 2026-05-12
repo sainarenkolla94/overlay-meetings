@@ -33,6 +33,7 @@ export type AnalyzeResult = {
   teamsDetected: boolean;
   sentImageToProvider: boolean;
   imageProvider: AppSettings["provider"];
+  ocrText: string;
 };
 
 export type DesktopAudioSource = {

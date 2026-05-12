@@ -13,6 +13,7 @@ Implemented:
 - Settings panel for OpenAI API key, model, language, and hotkeys.
 - Provider selection for OpenAI or OpenRouter.
 - Gemini answer provider support with optional screenshot sending.
+- OCR fallback for screenshots using Tesseract.js.
 - Microsoft Teams process detection on Windows.
 - Primary screen capture using Electron `desktopCapturer`.
 - OpenAI Responses API integration using screenshot + transcript context.
@@ -22,6 +23,7 @@ Implemented:
 - Assistant modes: coding, behavioral, and meeting.
 - Manual analyze hotkey.
 - Auto-analyze toggle with configurable interval.
+- Question detection toggle for transcript-driven auto answers.
 - In-session suggestion history.
 - Compact mode, resize lock, corner snapping, and keyboard nudging.
 - View modes: Full, Glass, and Stealth.
@@ -142,6 +144,7 @@ OpenRouter has a `Send screenshot to OpenRouter` setting. Keep it enabled when u
 - Analyze current screen/context: `Ctrl + Shift + Space`
 - Hide/show overlay: `Ctrl + Shift + H`
 - Nudge overlay position: `Ctrl + Alt + Arrow keys`
+- Cycle view mode: `Ctrl + Alt + V`
 
 On macOS during development, Electron maps `CommandOrControl` to Command. The target platform for this prototype is Windows.
 
@@ -151,7 +154,7 @@ To reduce visible cursor movement during screen sharing:
 
 1. Use `Full` mode for setup, settings, transcript entry, and debugging.
 2. Switch to `Glass` mode during normal interview assistance.
-3. Switch to `Stealth` mode during screen sharing.
+3. Switch to `Stealth` mode during screen sharing. Stealth hides setup controls and shows a scrollable answer-only surface. Use the tiny `Full` button or `Ctrl + Alt + V` to leave Stealth mode.
 4. Position the overlay before sharing.
 5. Turn on resize lock with the lock button.
 6. Use the corner snap buttons instead of dragging.
@@ -172,6 +175,14 @@ By default, the app captures the primary screen. If your coding problem is on an
 
 Use `Last screen capture` to confirm the app is actually seeing the right content.
 
+The overlay also reports OCR status after each Analyze, for example:
+
+```text
+Image sent to gemini · OCR extracted 1234 chars
+```
+
+If OCR extracts no text, zoom in on the problem statement or choose a better capture source.
+
 ## Teams Test Flow
 
 Use this flow on the Windows laptop:
@@ -184,6 +195,8 @@ Use this flow on the Windows laptop:
 6. Check whether the overlay returns a useful suggestion.
 
 You can also click `Auto` to rerun analysis periodically. The interval is controlled in Settings by `Auto analyze interval seconds`. Keep this conservative when using rate-limited free models.
+
+Use `Detect` to watch the transcript for likely interviewer questions and trigger Analyze automatically. Detect uses local keyword heuristics and the same cooldown as the Auto interval, so it is conservative by design.
 
 ## Audio Testing
 
@@ -216,6 +229,7 @@ Test flow:
 6. Wait around 9-12 seconds for the first chunk to transcribe.
 7. Confirm text appears in Recent transcript.
 8. Click `Analyze` or enable `Auto`.
+9. Enable `Detect` if you want likely questions in the transcript to trigger answers automatically.
 
 If audio capture fails, the next planned implementation is a native Windows WASAPI loopback helper.
 
@@ -329,7 +343,7 @@ Recommended next implementation order:
 1. Replace experimental desktop audio capture with native Windows WASAPI loopback.
 2. Add local Whisper transcription option.
 3. Add rolling transcript buffer controls.
-4. Add automatic question detection.
+4. Improve automatic question detection with model-based classification.
 5. Add native Windows `SetWindowDisplayAffinity` helper.
 6. Add document upload for resume/job description context.
 7. Add Zoom detection and testing.
