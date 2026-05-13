@@ -159,6 +159,7 @@ OpenRouter has a `Send screenshot to OpenRouter` setting. Keep it enabled when u
 - Toggle Audio: `Ctrl + Alt + A`
 - Copy answer: `Ctrl + Alt + K`
 - Toggle click-through: `Ctrl + Alt + P`
+- Collapse/expand bubble: `Ctrl + Alt + B`
 
 On macOS during development, Electron maps `CommandOrControl` to Command. The target platform for this prototype is Windows.
 

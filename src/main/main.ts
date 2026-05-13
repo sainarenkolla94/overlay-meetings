@@ -192,6 +192,7 @@ function registerShortcuts() {
   globalShortcut.register("CommandOrControl+Alt+K", () => sendAction("copy-answer"));
   globalShortcut.register("CommandOrControl+Alt+P", () => sendAction("toggle-click-through"));
   globalShortcut.register("CommandOrControl+Alt+V", () => sendAction("cycle-view"));
+  globalShortcut.register("CommandOrControl+Alt+B", () => sendAction("toggle-bubble"));
 }
 
 function nudgeWindow(direction: WindowNudgeDirection, amount = 24) {

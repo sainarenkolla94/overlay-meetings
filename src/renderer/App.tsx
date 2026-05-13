@@ -212,6 +212,7 @@ function App() {
       if (action === "copy-answer") void copyAnswer();
       if (action === "toggle-click-through") void toggleClickThrough();
       if (action === "cycle-view") void cycleViewMode();
+      if (action === "toggle-bubble") void toggleLauncherMode();
     });
 
     const interval = window.setInterval(refreshTeamsStatus, 5000);
