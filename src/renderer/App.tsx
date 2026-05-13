@@ -152,6 +152,10 @@ function App() {
   const transcriptRef = useRef(transcript);
   const screenContextRef = useRef(screenContext);
   const modeRef = useRef(mode);
+  const clickThroughRef = useRef(clickThrough);
+  const compactRef = useRef(compact);
+  const resizeLockedRef = useRef(resizeLocked);
+  const launcherModeRef = useRef(launcherMode);
   const autoAnalyzeRef = useRef(autoAnalyze);
   const questionDetectRef = useRef(questionDetect);
   const lastQuestionAnalyzeAtRef = useRef(0);
@@ -171,6 +175,22 @@ function App() {
   useEffect(() => {
     modeRef.current = mode;
   }, [mode]);
+
+  useEffect(() => {
+    clickThroughRef.current = clickThrough;
+  }, [clickThrough]);
+
+  useEffect(() => {
+    compactRef.current = compact;
+  }, [compact]);
+
+  useEffect(() => {
+    resizeLockedRef.current = resizeLocked;
+  }, [resizeLocked]);
+
+  useEffect(() => {
+    launcherModeRef.current = launcherMode;
+  }, [launcherMode]);
 
   useEffect(() => {
     autoAnalyzeRef.current = autoAnalyze;
@@ -744,18 +764,21 @@ ${answer}`;
   }
 
   async function toggleLauncherMode() {
-    const next = !launcherMode;
+    const next = !launcherModeRef.current;
     if (next) {
-      if (clickThrough) {
+      if (clickThroughRef.current) {
         setClickThrough(false);
+        clickThroughRef.current = false;
         await overlayApi.setClickThrough(false);
       }
       await overlayApi.setLauncher(true);
+      launcherModeRef.current = true;
       setLauncherMode(true);
       return;
     }
     await overlayApi.setLauncher(false);
-    await overlayApi.setResizable(!resizeLocked && !compact);
+    await overlayApi.setResizable(!resizeLockedRef.current && !compactRef.current);
+    launcherModeRef.current = false;
     setLauncherMode(false);
   }
 

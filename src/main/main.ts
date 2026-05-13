@@ -239,11 +239,12 @@ function setLauncherMode(enabled: boolean) {
         width: launcherSize.width,
         height: launcherSize.height
       },
-      true
+      false
     );
     return;
   }
 
+  overlayWindow.setResizable(true);
   overlayWindow.setMinimumSize(minimumSize.width, minimumSize.height);
   const nextBounds = restoreBounds ?? {
     x: area.x + area.width - compactSize.width - margin,
@@ -251,7 +252,7 @@ function setLauncherMode(enabled: boolean) {
     width: compactSize.width,
     height: compactSize.height
   };
-  overlayWindow.setBounds(nextBounds, true);
+  overlayWindow.setBounds(nextBounds, false);
 }
 
 async function getTeamsStatus(): Promise<TeamsStatus> {
