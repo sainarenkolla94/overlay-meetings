@@ -105,14 +105,15 @@ button:hover {
 }
 
 .launcherButton {
-  width: 100%;
-  height: 100%;
+  width: 44px;
+  height: 44px;
   min-height: 0;
   padding: 0;
   border: 0;
   border-radius: 999px;
   color: #101615;
   background: #83f7c3;
+  box-shadow: 0 0 0 8px rgba(131, 247, 195, 0.14);
 }
 
 .launcherButton:hover {

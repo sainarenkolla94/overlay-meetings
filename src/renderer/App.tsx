@@ -776,10 +776,10 @@ ${answer}`;
       setLauncherMode(true);
       return;
     }
-    await overlayApi.setLauncher(false);
-    await overlayApi.setResizable(!resizeLockedRef.current && !compactRef.current);
     launcherModeRef.current = false;
     setLauncherMode(false);
+    await overlayApi.setLauncher(false);
+    await overlayApi.setResizable(!resizeLockedRef.current && !compactRef.current);
   }
 
   async function snap(position: WindowSnapPosition) {
