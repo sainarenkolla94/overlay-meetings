@@ -141,10 +141,10 @@ function App() {
   const [systemAudioListening, setSystemAudioListening] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null);
   const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
-  const [compact, setCompact] = useState(true);
+  const [compact, setCompact] = useState(false);
   const [launcherMode, setLauncherMode] = useState(false);
   const [expandedAnswer, setExpandedAnswer] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("glass");
+  const [viewMode, setViewMode] = useState<ViewMode>("full");
   const [resizeLocked, setResizeLocked] = useState(true);
   const [history, setHistory] = useState<SuggestionItem[]>([]);
   const recognitionRef = useRef<SpeechRecognition | null>(null);

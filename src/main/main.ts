@@ -128,8 +128,8 @@ ${history || "(No suggestion history.)"}
 
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: compactSize.width,
-    height: compactSize.height,
+    width: fullSize.width,
+    height: fullSize.height,
     minWidth: minimumSize.width,
     minHeight: minimumSize.height,
     x: 80,
