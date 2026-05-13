@@ -47,7 +47,7 @@ const defaultSettings: AppSettings = {
 
 let cachedSettings: AppSettings = { ...defaultSettings };
 let overlayWindow: BrowserWindow | null = null;
-const fullSize = { width: 430, height: 680 };
+const fullSize = { width: 460, height: 860 };
 const compactSize = { width: 360, height: 280 };
 let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null;
 
@@ -124,8 +124,8 @@ ${history || "(No suggestion history.)"}
 
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: 430,
-    height: 680,
+    width: fullSize.width,
+    height: fullSize.height,
     minWidth: 340,
     minHeight: 420,
     x: 80,
