@@ -434,7 +434,7 @@ button:hover {
 
 .controls {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr 0.74fr 0.86fr 0.74fr 0.7fr;
+  grid-template-columns: 1fr 0.88fr 0.88fr 0.7fr 0.78fr 0.72fr 0.64fr;
   gap: 8px;
 }
 

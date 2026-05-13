@@ -26,6 +26,8 @@ export type AnalyzeInput = {
   transcript: string;
   screenContext: string;
   mode: "coding" | "behavioral" | "meeting";
+  useScreenshot?: boolean;
+  responseStyle?: "overlay" | "spoken";
 };
 
 export type AnalyzeResult = {

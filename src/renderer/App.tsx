@@ -65,6 +65,7 @@ const defaultSettings: AppSettings = {
 type Mode = "coding" | "behavioral" | "meeting";
 type ViewMode = "full" | "glass" | "stealth" | "focus";
 type ProviderPreset = "gemini-groq" | "openrouter-groq" | "openai-only";
+const audioSegmentMs = 5000;
 type SuggestionItem = {
   id: number;
   answer: string;
@@ -543,7 +544,8 @@ function App() {
     transcriptForRequest = transcript,
     modeForRequest = mode,
     source: "manual" | "auto" | "continue" = "manual",
-    screenContextForRequest = screenContext
+    screenContextForRequest = screenContext,
+    options: { useScreenshot?: boolean; responseStyle?: "overlay" | "spoken" } = {}
   ) {
     if (analyzingRef.current) return;
     analyzingRef.current = true;
@@ -563,7 +565,9 @@ function App() {
       const result: AnalyzeResult = await overlayApi.analyzeNow({
         transcript: transcriptForRequest,
         screenContext: requestScreenContext,
-        mode: modeForRequest
+        mode: modeForRequest,
+        useScreenshot: options.useScreenshot,
+        responseStyle: options.responseStyle
       });
       setAnswer(result.answer);
       setLastImageStatus(result.sentImageToProvider ? `Image sent to ${result.imageProvider}` : `No image sent to ${result.imageProvider}`);
@@ -598,6 +602,13 @@ Previous answer appears incomplete. Continue and finish the answer from where it
 Previous answer:
 ${answer}`;
     await analyze(continuationPrompt, modeRef.current, "continue", screenContextRef.current);
+  }
+
+  async function analyzeTranscriptOnly() {
+    await analyze(transcriptRef.current, modeRef.current, "manual", "", {
+      useScreenshot: false,
+      responseStyle: "spoken"
+    });
   }
 
   function toggleMic() {
@@ -727,7 +738,7 @@ ${answer}`;
         if (source === "system") {
           systemAudioSegmentTimerRef.current = window.setTimeout(() => {
             if (recorder.state !== "inactive") recorder.stop();
-          }, 9000);
+          }, audioSegmentMs);
         }
         return recorder;
       } catch (err) {
@@ -986,6 +997,9 @@ ${answer}`;
         <button className="primary" onClick={() => analyze(transcriptRef.current, modeRef.current, "manual", screenContextRef.current)} disabled={status === "analyzing" || status === "capturing"}>
           <Sparkles size={17} />
           Analyze
+        </button>
+        <button onClick={analyzeTranscriptOnly} disabled={status === "analyzing" || status === "capturing"}>
+          Audio Q
         </button>
         <button onClick={addScreenContext} disabled={status === "analyzing" || status === "capturing"}>
           <Clipboard size={17} />

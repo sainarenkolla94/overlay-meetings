@@ -482,6 +482,17 @@ async function transcribeWithGroq(input: TranscribeAudioInput): Promise<Transcri
 }
 
 function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings, ocrText = "") {
+  if (input.responseStyle === "spoken") {
+    return `You are helping the user answer a spoken interview or meeting question.
+
+Use only the recent transcript below. Do not use or mention screenshots, screen context, OCR, or missing screen content.
+
+Produce a natural answer the user can say out loud. Keep it concise and conversational: 3-6 bullet points or a short paragraph. If the transcript contains multiple possible questions, answer the latest clear question. If the transcript is incomplete, give the best brief answer and mention the missing detail in one short line.
+
+Recent transcript:
+${input.transcript || "(No transcript captured yet.)"}`;
+  }
+
   const modeInstruction =
     input.mode === "coding"
       ? `You are a discreet coding interview assistant. Produce a concise answer for the overlay. Prefer ${settings.preferredLanguage}. Include: key idea, steps, edge cases, time and space complexity, and code only if enough detail is visible.`
@@ -816,7 +827,8 @@ ipcMain.handle("window:hide", () => {
 
 ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise<AnalyzeResult> => {
   const settings = cachedSettings;
-  const [screenshotDataUrl, teams] = await Promise.all([capturePrimaryScreen(), getTeamsStatus()]);
+  const shouldUseScreenshot = input.useScreenshot !== false;
+  const [screenshotDataUrl, teams] = await Promise.all([shouldUseScreenshot ? capturePrimaryScreen() : undefined, getTeamsStatus()]);
   const ocrText = await extractOcrText(screenshotDataUrl);
   const sentImageToProvider =
     Boolean(screenshotDataUrl) &&
