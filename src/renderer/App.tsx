@@ -668,6 +668,46 @@ ${answer}`;
     }
   }
 
+  function getSupportedAudioRecorderOptions(): Array<MediaRecorderOptions | undefined> {
+    const candidates: MediaRecorderOptions[] = [
+      { mimeType: "audio/webm;codecs=opus", audioBitsPerSecond: 32000 },
+      { mimeType: "audio/webm", audioBitsPerSecond: 32000 },
+      { mimeType: "video/webm;codecs=opus", audioBitsPerSecond: 32000 },
+      { mimeType: "video/webm", audioBitsPerSecond: 32000 }
+    ];
+
+    return [
+      ...candidates.filter((candidate) => !candidate.mimeType || MediaRecorder.isTypeSupported(candidate.mimeType)),
+      undefined
+    ];
+  }
+
+  function createStartedRecorder(stream: MediaStream, source: "system" | "mic") {
+    let lastError: unknown;
+
+    for (const options of getSupportedAudioRecorderOptions()) {
+      try {
+        const recorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            void transcribeAudioChunk(event.data, source);
+          }
+        };
+        recorder.onerror = () => {
+          setStatus("error");
+          setError("System audio recorder failed.");
+          stopSystemAudio();
+        };
+        recorder.start(9000);
+        return recorder;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error("Could not start audio recorder with any supported format.");
+  }
+
   async function startSystemAudio() {
     setError("");
     try {
@@ -694,24 +734,18 @@ ${answer}`;
         }
       } as MediaStreamConstraints);
 
-      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? "audio/webm;codecs=opus"
-        : "audio/webm";
-      const recorder = new MediaRecorder(stream, { mimeType, audioBitsPerSecond: 32000 });
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          void transcribeAudioChunk(event.data, "system");
-        }
-      };
-      recorder.onerror = () => {
-        setStatus("error");
-        setError("System audio recorder failed.");
-        stopSystemAudio();
-      };
+      const audioTracks = stream.getAudioTracks();
+      if (!audioTracks.length) {
+        stream.getTracks().forEach((track) => track.stop());
+        throw new Error("Desktop capture started, but Windows did not provide an audio track. Make sure Teams audio is playing through system speakers/headphones, then try Audio again.");
+      }
 
-      systemAudioStreamRef.current = stream;
+      const audioOnlyStream = new MediaStream(audioTracks);
+      stream.getVideoTracks().forEach((track) => track.stop());
+      const recorder = createStartedRecorder(audioOnlyStream, "system");
+
+      systemAudioStreamRef.current = audioOnlyStream;
       systemAudioRecorderRef.current = recorder;
-      recorder.start(9000);
       setSystemAudioListening(true);
       setStatus("listening");
     } catch (err) {
