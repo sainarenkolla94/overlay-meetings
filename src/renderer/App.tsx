@@ -783,7 +783,7 @@ ${answer}`;
   return (
     <main className={`shell ${compact ? "compactShell" : ""} ${launcherMode ? "launcherShell" : ""} ${viewMode}Mode`}>
       {launcherMode ? (
-        <button className="launcherButton" title="Expand overlay" onClick={toggleLauncherMode}>
+        <button className="launcherButton" aria-label="Expand overlay" onClick={toggleLauncherMode}>
           <Brain size={24} />
         </button>
       ) : null}
