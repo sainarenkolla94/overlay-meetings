@@ -14,6 +14,7 @@ Implemented:
 - Provider selection for OpenAI or OpenRouter.
 - Gemini answer provider support with optional screenshot sending.
 - OCR fallback for screenshots using Tesseract.js.
+- Multi-capture screen context buffer for long problems.
 - Microsoft Teams process detection on Windows.
 - Primary screen capture using Electron `desktopCapturer`.
 - OpenAI Responses API integration using screenshot + transcript context.
@@ -24,6 +25,7 @@ Implemented:
 - Manual analyze hotkey.
 - Auto-analyze toggle with configurable interval.
 - Question detection toggle for transcript-driven auto answers.
+- Session start/stop timer and clear-all control.
 - In-session suggestion history.
 - Compact mode, resize lock, corner snapping, and keyboard nudging.
 - View modes: Full, Glass, and Stealth.
@@ -145,6 +147,12 @@ OpenRouter has a `Send screenshot to OpenRouter` setting. Keep it enabled when u
 - Hide/show overlay: `Ctrl + Shift + H`
 - Nudge overlay position: `Ctrl + Alt + Arrow keys`
 - Cycle view mode: `Ctrl + Alt + V`
+- Add screen context: `Ctrl + Alt + C`
+- Clear screen context: `Ctrl + Alt + X`
+- Toggle Detect: `Ctrl + Alt + D`
+- Toggle Audio: `Ctrl + Alt + A`
+- Copy answer: `Ctrl + Alt + K`
+- Toggle click-through: `Ctrl + Alt + P`
 
 On macOS during development, Electron maps `CommandOrControl` to Command. The target platform for this prototype is Windows.
 
@@ -183,6 +191,19 @@ Image sent to gemini · OCR extracted 1234 chars
 
 If OCR extracts no text, zoom in on the problem statement or choose a better capture source.
 
+## Long Problem Statements
+
+For questions that span multiple screens:
+
+1. Scroll to the first part of the problem.
+2. Click `Context`.
+3. Scroll to the next part.
+4. Click `Context` again.
+5. Repeat until the full prompt is captured.
+6. Click `Analyze`.
+
+The app stores accumulated OCR text as screen context and sends it with Analyze. Duplicate lines are filtered out where possible. Use `Clear ctx` to reset the saved screen context.
+
 ## Teams Test Flow
 
 Use this flow on the Windows laptop:
@@ -190,13 +211,22 @@ Use this flow on the Windows laptop:
 1. Run the app with `npm run dev`.
 2. Open Microsoft Teams.
 3. Join or start a test meeting.
-4. Put a coding question, code snippet, error message, or shared screen content on the display.
-5. Press `Ctrl + Shift + Space`.
-6. Check whether the overlay returns a useful suggestion.
+4. Click `Start` in the session bar.
+5. Put a coding question, code snippet, error message, or shared screen content on the display.
+6. Press `Ctrl + Shift + Space`.
+7. Check whether the overlay returns a useful suggestion.
 
 You can also click `Auto` to rerun analysis periodically. The interval is controlled in Settings by `Auto analyze interval seconds`. Keep this conservative when using rate-limited free models.
 
 Use `Detect` to watch the transcript for likely interviewer questions and trigger Analyze automatically. Detect uses local keyword heuristics and the same cooldown as the Auto interval, so it is conservative by design.
+
+When Detect fires, the debug line shows the matched signal, for example:
+
+```text
+Detected: can you
+```
+
+If an answer stops early, click `Continue` in the Suggestion panel to ask the provider to finish from the previous answer.
 
 ## Audio Testing
 

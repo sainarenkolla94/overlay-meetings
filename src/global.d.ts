@@ -2,6 +2,7 @@ import type {
   AnalyzeInput,
   AnalyzeResult,
   AppSettings,
+  CaptureContextResult,
   CaptureSource,
   DesktopAudioSource,
   TeamsStatus,
@@ -17,6 +18,7 @@ declare global {
       getSettings: () => Promise<AppSettings>;
       saveSettings: (settings: AppSettings) => Promise<AppSettings>;
       analyzeNow: (input: AnalyzeInput) => Promise<AnalyzeResult>;
+      captureContext: () => Promise<CaptureContextResult>;
       getCaptureSources: () => Promise<CaptureSource[]>;
       getDesktopAudioSources: () => Promise<DesktopAudioSource[]>;
       transcribeAudio: (input: TranscribeAudioInput) => Promise<TranscribeAudioResult>;

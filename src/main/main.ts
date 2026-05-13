@@ -8,6 +8,7 @@ import type {
   AnalyzeInput,
   AnalyzeResult,
   AppSettings,
+  CaptureContextResult,
   CaptureSource,
   DesktopAudioSource,
   TeamsStatus,
@@ -407,6 +408,9 @@ Do not stop mid-sentence. Keep code compact but complete.
 Recent transcript:
 ${input.transcript || "(No transcript captured yet.)"}
 
+Accumulated screen context:
+${input.screenContext || "(No accumulated screen context.)"}
+
 OCR extracted from screenshot:
 ${ocrText || "(No OCR text extracted.)"}`;
 }
@@ -659,6 +663,15 @@ ipcMain.handle("settings:save", (_event, settings: AppSettings) => {
 ipcMain.handle("teams:status", () => getTeamsStatus());
 
 ipcMain.handle("capture:sources", () => getCaptureSources());
+
+ipcMain.handle("capture:context", async (): Promise<CaptureContextResult> => {
+  const screenshotDataUrl = await capturePrimaryScreen();
+  const ocrText = await extractOcrText(screenshotDataUrl);
+  return {
+    screenshotDataUrl,
+    ocrText
+  };
+});
 
 ipcMain.handle("audio:sources", () => getDesktopAudioSources());
 

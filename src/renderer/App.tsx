@@ -17,6 +17,7 @@ import {
   Minimize2,
   Pause,
   Play,
+  Power,
   RotateCcw,
   Search,
   Settings,
@@ -30,6 +31,7 @@ import type {
   AnalyzeResult,
   AppSettings,
   CaptureSource,
+  CaptureContextResult,
   AssistantStatus,
   DesktopAudioSource,
   TeamsStatus,
@@ -81,6 +83,7 @@ const overlayApi =
       imageProvider: "openai",
       ocrText: ""
     }),
+    captureContext: async () => ({ ocrText: "" }),
     getCaptureSources: async () => [],
     getDesktopAudioSources: async () => [],
     transcribeAudio: async () => ({ text: "" }),
@@ -114,6 +117,7 @@ function App() {
   const [mode, setMode] = useState<Mode>("coding");
   const [status, setStatus] = useState<AssistantStatus>("idle");
   const [transcript, setTranscript] = useState("");
+  const [screenContext, setScreenContext] = useState("");
   const [answer, setAnswer] = useState("Press Analyze after joining a Teams meeting or when a coding problem is visible on screen.");
   const [teamsStatus, setTeamsStatus] = useState<TeamsStatus | null>(null);
   const [captureSources, setCaptureSources] = useState<CaptureSource[]>([]);
@@ -121,10 +125,14 @@ function App() {
   const [lastCapture, setLastCapture] = useState<string | undefined>();
   const [lastImageStatus, setLastImageStatus] = useState("No image sent yet");
   const [lastOcrStatus, setLastOcrStatus] = useState("OCR not run yet");
+  const [lastDetectionStatus, setLastDetectionStatus] = useState("Detect idle");
+  const [screenContextStatus, setScreenContextStatus] = useState("No saved screen context");
   const [error, setError] = useState("");
   const [autoAnalyze, setAutoAnalyze] = useState(false);
   const [questionDetect, setQuestionDetect] = useState(false);
   const [systemAudioListening, setSystemAudioListening] = useState(false);
+  const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null);
+  const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
   const [compact, setCompact] = useState(false);
   const [expandedAnswer, setExpandedAnswer] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("full");
@@ -134,6 +142,7 @@ function App() {
   const systemAudioRecorderRef = useRef<MediaRecorder | null>(null);
   const systemAudioStreamRef = useRef<MediaStream | null>(null);
   const transcriptRef = useRef(transcript);
+  const screenContextRef = useRef(screenContext);
   const modeRef = useRef(mode);
   const autoAnalyzeRef = useRef(autoAnalyze);
   const questionDetectRef = useRef(questionDetect);
@@ -144,6 +153,10 @@ function App() {
   useEffect(() => {
     transcriptRef.current = transcript;
   }, [transcript]);
+
+  useEffect(() => {
+    screenContextRef.current = screenContext;
+  }, [screenContext]);
 
   useEffect(() => {
     modeRef.current = mode;
@@ -174,6 +187,30 @@ function App() {
         event.preventDefault();
         void cycleViewMode();
       }
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        void addScreenContext();
+      }
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "x") {
+        event.preventDefault();
+        clearScreenContext();
+      }
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        setQuestionDetect((enabled) => !enabled);
+      }
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "a") {
+        event.preventDefault();
+        void toggleSystemAudio();
+      }
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        void copyAnswer();
+      }
+      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        void toggleClickThrough();
+      }
     }
 
     window.addEventListener("keydown", handleKeyDown);
@@ -200,6 +237,19 @@ function App() {
       stopSystemAudio();
     };
   }, []);
+
+  useEffect(() => {
+    if (!sessionStartedAt) {
+      setSessionElapsedSeconds(0);
+      return undefined;
+    }
+
+    const interval = window.setInterval(() => {
+      setSessionElapsedSeconds(Math.floor((Date.now() - sessionStartedAt.getTime()) / 1000));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [sessionStartedAt]);
 
   useEffect(() => {
     if (!autoAnalyze) return undefined;
@@ -229,9 +279,10 @@ function App() {
       if (Date.now() - lastQuestionAnalyzeAtRef.current < cooldownMs) return;
       if (!isLikelyQuestion(candidateText, modeRef.current)) return;
 
+      setLastDetectionStatus(explainDetection(candidateText, modeRef.current));
       lastQuestionAnalyzeAtRef.current = Date.now();
       lastAnalyzedTranscriptRef.current = currentTranscript;
-      void analyze(currentTranscript, modeRef.current, "auto");
+      void analyze(currentTranscript, modeRef.current, "auto", screenContextRef.current);
     }, 1800);
 
     return () => window.clearTimeout(timeout);
@@ -288,6 +339,27 @@ function App() {
     return false;
   }
 
+  function explainDetection(text: string, currentMode: Mode) {
+    const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
+    const phrases = [
+      "can you",
+      "could you",
+      "would you",
+      "how would",
+      "what is",
+      "explain",
+      "walk me through",
+      "implement",
+      "solve",
+      "complexity",
+      "edge case"
+    ];
+    const matchedPhrase = phrases.find((phrase) => normalized.includes(phrase));
+    if (matchedPhrase) return `Detected: ${matchedPhrase}`;
+    if (currentMode === "coding") return "Detected: coding prompt";
+    return "Detected: likely question";
+  }
+
   async function refreshTeamsStatus() {
     const current = await overlayApi.getTeamsStatus();
     setTeamsStatus(current);
@@ -304,7 +376,87 @@ function App() {
     setShowSettings(false);
   }
 
-  async function analyze(transcriptForRequest = transcript, modeForRequest = mode, source: "manual" | "auto" = "manual") {
+  function formatElapsed(totalSeconds: number) {
+    const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
+    const seconds = (totalSeconds % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  }
+
+  function toggleSession() {
+    if (sessionStartedAt) {
+      setSessionStartedAt(null);
+      setAutoAnalyze(false);
+      setQuestionDetect(false);
+      stopSystemAudio();
+      recognitionRef.current?.stop();
+      return;
+    }
+    setSessionStartedAt(new Date());
+  }
+
+  function clearSession() {
+    setTranscript("");
+    clearScreenContext();
+    setAnswer("Session cleared. Press Analyze after joining a Teams meeting or when a coding problem is visible on screen.");
+    setHistory([]);
+    setLastCapture(undefined);
+    setLastImageStatus("No image sent yet");
+    setLastOcrStatus("OCR not run yet");
+    setLastDetectionStatus("Detect idle");
+    setError("");
+  }
+
+  function mergeScreenContext(existing: string, next: string) {
+    const seen = new Set(existing.split("\n").map((line) => line.trim().toLowerCase()).filter(Boolean));
+    const merged = existing.trim() ? [existing.trim()] : [];
+    const newLines = next
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 2)
+      .filter((line) => {
+        const key = line.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+    if (newLines.length) {
+      merged.push(newLines.join("\n"));
+    }
+
+    return merged.join("\n\n--- next capture ---\n\n").slice(-12000);
+  }
+
+  async function addScreenContext() {
+    setStatus("analyzing");
+    setError("");
+    try {
+      const result: CaptureContextResult = await overlayApi.captureContext();
+      setLastCapture(result.screenshotDataUrl);
+      setLastOcrStatus(result.ocrText ? `OCR extracted ${result.ocrText.length} chars` : "OCR extracted no text");
+      setScreenContext((previous) => {
+        const merged = mergeScreenContext(previous, result.ocrText);
+        setScreenContextStatus(merged ? `Saved screen context: ${merged.length} chars` : "No text saved from capture");
+        return merged;
+      });
+      setStatus("ready");
+    } catch (err) {
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Could not add screen context.");
+    }
+  }
+
+  function clearScreenContext() {
+    setScreenContext("");
+    setScreenContextStatus("No saved screen context");
+  }
+
+  async function analyze(
+    transcriptForRequest = transcript,
+    modeForRequest = mode,
+    source: "manual" | "auto" = "manual",
+    screenContextForRequest = screenContext
+  ) {
     if (analyzingRef.current) return;
     analyzingRef.current = true;
     setStatus("analyzing");
@@ -312,6 +464,7 @@ function App() {
     try {
       const result: AnalyzeResult = await overlayApi.analyzeNow({
         transcript: transcriptForRequest,
+        screenContext: screenContextForRequest,
         mode: modeForRequest
       });
       setAnswer(result.answer);
@@ -336,6 +489,16 @@ function App() {
     } finally {
       analyzingRef.current = false;
     }
+  }
+
+  async function continueAnswer() {
+    const continuationPrompt = `${transcriptRef.current}
+
+Previous answer appears incomplete. Continue and finish the answer from where it stopped. Do not restart unless necessary.
+
+Previous answer:
+${answer}`;
+    await analyze(continuationPrompt, modeRef.current, "manual", screenContextRef.current);
   }
 
   function toggleMic() {
@@ -569,7 +732,19 @@ function App() {
       </section>}
 
       {viewMode !== "stealth" && <section className="imageStatus">
-        {lastImageStatus} · {lastOcrStatus}
+        {lastImageStatus} · {lastOcrStatus} · {screenContextStatus} · {lastDetectionStatus}
+      </section>}
+
+      {viewMode !== "stealth" && <section className="sessionBar">
+        <button className={sessionStartedAt ? "active" : ""} onClick={toggleSession}>
+          <Power size={15} />
+          {sessionStartedAt ? formatElapsed(sessionElapsedSeconds) : "Start"}
+        </button>
+        <button onClick={clearSession}>
+          <RotateCcw size={15} />
+          Clear all
+        </button>
+        <span>Shortcuts: Ctrl+Alt+C context · D detect · A audio · K copy · P click-through</span>
       </section>}
 
       {viewMode !== "stealth" && (
@@ -608,6 +783,10 @@ function App() {
           <Sparkles size={17} />
           Analyze
         </button>
+        <button onClick={addScreenContext} disabled={status === "analyzing"}>
+          <Clipboard size={17} />
+          Context
+        </button>
         <button className={autoAnalyze ? "active" : ""} onClick={() => setAutoAnalyze((enabled) => !enabled)}>
           <Timer size={17} />
           Auto
@@ -633,6 +812,9 @@ function App() {
             <button title="Expand answer" onClick={() => setExpandedAnswer((expanded) => !expanded)} className="smallTextButton">
               {expandedAnswer ? "Less" : "More"}
             </button>
+            <button title="Continue answer" onClick={continueAnswer} className="smallTextButton">
+              Continue
+            </button>
             <button title="Copy answer" onClick={copyAnswer} className="iconButton small">
               <Clipboard size={15} />
             </button>
@@ -646,6 +828,9 @@ function App() {
         <div className="panelHeader">
           <span>Recent transcript</span>
           <div className="panelActions">
+            <button title="Clear saved screen context" onClick={clearScreenContext} className="smallTextButton">
+              Clear ctx
+            </button>
             <button title="Copy transcript" onClick={copyTranscript} className="iconButton small">
               <Clipboard size={15} />
             </button>

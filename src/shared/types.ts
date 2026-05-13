@@ -24,6 +24,7 @@ export type AppSettings = {
 
 export type AnalyzeInput = {
   transcript: string;
+  screenContext: string;
   mode: "coding" | "behavioral" | "meeting";
 };
 
@@ -33,6 +34,11 @@ export type AnalyzeResult = {
   teamsDetected: boolean;
   sentImageToProvider: boolean;
   imageProvider: AppSettings["provider"];
+  ocrText: string;
+};
+
+export type CaptureContextResult = {
+  screenshotDataUrl?: string;
   ocrText: string;
 };
 
