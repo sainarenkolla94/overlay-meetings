@@ -51,6 +51,7 @@ let overlayWindow: BrowserWindow | null = null;
 const fullSize = { width: 460, height: 860 };
 const compactSize = { width: 430, height: 520 };
 const launcherSize = { width: 62, height: 62 };
+const minimumSize = { width: 340, height: 420 };
 let restoreBounds: Rectangle | null = null;
 let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null;
 
@@ -129,8 +130,8 @@ function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
     width: compactSize.width,
     height: compactSize.height,
-    minWidth: 340,
-    minHeight: 420,
+    minWidth: minimumSize.width,
+    minHeight: minimumSize.height,
     x: 80,
     y: 80,
     frame: false,
@@ -230,6 +231,7 @@ function setLauncherMode(enabled: boolean) {
   if (enabled) {
     restoreBounds = currentBounds;
     overlayWindow.setResizable(false);
+    overlayWindow.setMinimumSize(launcherSize.width, launcherSize.height);
     overlayWindow.setBounds(
       {
         x: area.x + area.width - launcherSize.width - margin,
@@ -242,6 +244,7 @@ function setLauncherMode(enabled: boolean) {
     return;
   }
 
+  overlayWindow.setMinimumSize(minimumSize.width, minimumSize.height);
   const nextBounds = restoreBounds ?? {
     x: area.x + area.width - compactSize.width - margin,
     y: area.y + area.height - compactSize.height - margin,

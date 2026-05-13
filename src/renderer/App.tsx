@@ -745,17 +745,18 @@ ${answer}`;
 
   async function toggleLauncherMode() {
     const next = !launcherMode;
-    setLauncherMode(next);
     if (next) {
       if (clickThrough) {
         setClickThrough(false);
         await overlayApi.setClickThrough(false);
       }
       await overlayApi.setLauncher(true);
+      setLauncherMode(true);
       return;
     }
     await overlayApi.setLauncher(false);
     await overlayApi.setResizable(!resizeLocked && !compact);
+    setLauncherMode(false);
   }
 
   async function snap(position: WindowSnapPosition) {
