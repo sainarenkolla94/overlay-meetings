@@ -29,6 +29,7 @@ declare global {
       setClickThrough: (enabled: boolean) => Promise<void>;
       setResizable: (enabled: boolean) => Promise<void>;
       setCompact: (enabled: boolean) => Promise<void>;
+      setLauncher: (enabled: boolean) => Promise<void>;
       nudgeWindow: (direction: WindowNudgeDirection, amount?: number) => Promise<void>;
       snapWindow: (position: WindowSnapPosition) => Promise<void>;
       hideOverlay: () => Promise<void>;

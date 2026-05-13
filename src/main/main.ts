@@ -1,4 +1,5 @@
 import { app, BrowserWindow, desktopCapturer, globalShortcut, ipcMain, nativeImage, screen } from "electron";
+import type { Rectangle } from "electron";
 import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
@@ -48,7 +49,9 @@ const defaultSettings: AppSettings = {
 let cachedSettings: AppSettings = { ...defaultSettings };
 let overlayWindow: BrowserWindow | null = null;
 const fullSize = { width: 460, height: 860 };
-const compactSize = { width: 360, height: 280 };
+const compactSize = { width: 430, height: 520 };
+const launcherSize = { width: 62, height: 62 };
+let restoreBounds: Rectangle | null = null;
 let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null;
 
 function settingsPath() {
@@ -124,8 +127,8 @@ ${history || "(No suggestion history.)"}
 
 function createOverlayWindow() {
   overlayWindow = new BrowserWindow({
-    width: fullSize.width,
-    height: fullSize.height,
+    width: compactSize.width,
+    height: compactSize.height,
     minWidth: 340,
     minHeight: 420,
     x: 80,
@@ -214,6 +217,37 @@ function snapWindow(position: WindowSnapPosition) {
   const y = position.startsWith("bottom") ? area.y + area.height - bounds.height - margin : area.y + margin;
 
   overlayWindow.setBounds({ ...bounds, x, y }, true);
+}
+
+function setLauncherMode(enabled: boolean) {
+  if (!overlayWindow) return;
+  const currentBounds = overlayWindow.getBounds();
+  const display = screen.getDisplayMatching(currentBounds);
+  const area = display.workArea;
+  const margin = 18;
+
+  if (enabled) {
+    restoreBounds = currentBounds;
+    overlayWindow.setResizable(false);
+    overlayWindow.setBounds(
+      {
+        x: area.x + area.width - launcherSize.width - margin,
+        y: area.y + area.height - launcherSize.height - margin,
+        width: launcherSize.width,
+        height: launcherSize.height
+      },
+      true
+    );
+    return;
+  }
+
+  const nextBounds = restoreBounds ?? {
+    x: area.x + area.width - compactSize.width - margin,
+    y: area.y + area.height - compactSize.height - margin,
+    width: compactSize.width,
+    height: compactSize.height
+  };
+  overlayWindow.setBounds(nextBounds, true);
 }
 
 async function getTeamsStatus(): Promise<TeamsStatus> {
@@ -757,6 +791,10 @@ ipcMain.handle("window:compact", (_event, enabled: boolean) => {
   if (!overlayWindow) return;
   overlayWindow.setResizable(!enabled);
   overlayWindow.setSize(enabled ? compactSize.width : fullSize.width, enabled ? compactSize.height : fullSize.height, true);
+});
+
+ipcMain.handle("window:launcher", (_event, enabled: boolean) => {
+  setLauncherMode(enabled);
 });
 
 ipcMain.handle("window:nudge", (_event, direction: WindowNudgeDirection, amount?: number) => {

@@ -98,6 +98,7 @@ const overlayApi =
     setClickThrough: async () => undefined,
     setResizable: async () => undefined,
     setCompact: async () => undefined,
+    setLauncher: async () => undefined,
     nudgeWindow: async () => undefined,
     snapWindow: async () => undefined,
     hideOverlay: async () => undefined,
@@ -139,9 +140,10 @@ function App() {
   const [systemAudioListening, setSystemAudioListening] = useState(false);
   const [sessionStartedAt, setSessionStartedAt] = useState<Date | null>(null);
   const [sessionElapsedSeconds, setSessionElapsedSeconds] = useState(0);
-  const [compact, setCompact] = useState(false);
+  const [compact, setCompact] = useState(true);
+  const [launcherMode, setLauncherMode] = useState(false);
   const [expandedAnswer, setExpandedAnswer] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("full");
+  const [viewMode, setViewMode] = useState<ViewMode>("glass");
   const [resizeLocked, setResizeLocked] = useState(true);
   const [history, setHistory] = useState<SuggestionItem[]>([]);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -740,6 +742,21 @@ ${answer}`;
     await overlayApi.setResizable(!next && !compact);
   }
 
+  async function toggleLauncherMode() {
+    const next = !launcherMode;
+    setLauncherMode(next);
+    if (next) {
+      if (clickThrough) {
+        setClickThrough(false);
+        await overlayApi.setClickThrough(false);
+      }
+      await overlayApi.setLauncher(true);
+      return;
+    }
+    await overlayApi.setLauncher(false);
+    await overlayApi.setResizable(!resizeLocked && !compact);
+  }
+
   async function snap(position: WindowSnapPosition) {
     await overlayApi.snapWindow(position);
   }
@@ -764,12 +781,20 @@ ${answer}`;
   }
 
   return (
-    <main className={`shell ${compact ? "compactShell" : ""} ${viewMode}Mode`}>
+    <main className={`shell ${compact ? "compactShell" : ""} ${launcherMode ? "launcherShell" : ""} ${viewMode}Mode`}>
+      {launcherMode ? (
+        <button className="launcherButton" title="Expand overlay" onClick={toggleLauncherMode}>
+          <Brain size={24} />
+        </button>
+      ) : null}
+
+      {!launcherMode && (
+        <>
       <header className="titlebar">
         <div className="brand">
-          <div className="logo dragHandle" title="Drag overlay">
+          <button className="logo logoButton" title="Collapse to bubble" onClick={toggleLauncherMode}>
             <Brain size={18} />
-          </div>
+          </button>
           <div>
             <strong>Overlay Meetings</strong>
             <span>{statusLabel(status)}</span>
@@ -1161,6 +1186,8 @@ ${answer}`;
             </div>
           </section>
         </div>
+      )}
+      </>
       )}
     </main>
   );

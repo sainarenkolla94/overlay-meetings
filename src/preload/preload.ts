@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld("overlayApi", {
   setClickThrough: (enabled: boolean) => ipcRenderer.invoke("window:click-through", enabled),
   setResizable: (enabled: boolean) => ipcRenderer.invoke("window:resizable", enabled),
   setCompact: (enabled: boolean) => ipcRenderer.invoke("window:compact", enabled),
+  setLauncher: (enabled: boolean) => ipcRenderer.invoke("window:launcher", enabled),
   nudgeWindow: (direction: WindowNudgeDirection, amount?: number) => ipcRenderer.invoke("window:nudge", direction, amount),
   snapWindow: (position: WindowSnapPosition) => ipcRenderer.invoke("window:snap", position),
   hideOverlay: () => ipcRenderer.invoke("window:hide"),
