@@ -138,6 +138,11 @@ button:hover {
   overflow: hidden;
 }
 
+.focusMode {
+  padding: 7px;
+  overflow: hidden;
+}
+
 .titlebar {
   -webkit-app-region: drag;
   user-select: none;
@@ -223,7 +228,7 @@ button:hover {
 
 .viewSwitcher {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
   margin-bottom: 10px;
 }
@@ -240,13 +245,17 @@ button:hover {
 }
 
 .stealthMode .snapBar,
-.stealthMode .titlebar {
+.stealthMode .titlebar,
+.focusMode .snapBar,
+.focusMode .titlebar {
   padding: 0;
   margin-bottom: 6px;
 }
 
 .stealthMode .brand div:not(.logo),
-.stealthMode .windowActions {
+.stealthMode .windowActions,
+.focusMode .brand div:not(.logo),
+.focusMode .windowActions {
   display: none;
 }
 
@@ -265,7 +274,7 @@ button:hover {
   align-items: center;
   gap: 7px;
   padding: 0 9px;
-  color: #aab7c6;
+  color: #9fb0c2;
   font-size: 11px;
   text-transform: capitalize;
 }
@@ -287,10 +296,23 @@ button:hover {
   white-space: pre-wrap;
   word-break: break-word;
   padding: 0 9px 10px;
-  color: #f6fbff;
+  color: #eef4ff;
   font-family: inherit;
   font-size: 12px;
   line-height: 1.42;
+}
+
+.focusMode .stealthAnswer {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.focusMode .stealthMeta {
+  color: #9fb0c2;
+}
+
+.focusMode .stealthAnswer pre {
+  color: #eef4ff;
 }
 
 .snapBar button {

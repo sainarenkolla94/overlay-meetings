@@ -63,7 +63,7 @@ const defaultSettings: AppSettings = {
 };
 
 type Mode = "coding" | "behavioral" | "meeting";
-type ViewMode = "full" | "glass" | "stealth";
+type ViewMode = "full" | "glass" | "stealth" | "focus";
 type ProviderPreset = "gemini-groq" | "openrouter-groq" | "openai-only";
 type SuggestionItem = {
   id: number;
@@ -794,7 +794,8 @@ ${answer}`;
   }
 
   async function cycleViewMode() {
-    await setModeView(viewMode === "full" ? "glass" : viewMode === "glass" ? "stealth" : "full");
+    const nextMode = viewMode === "full" ? "glass" : viewMode === "glass" ? "stealth" : viewMode === "stealth" ? "focus" : "full";
+    await setModeView(nextMode);
   }
 
   async function copyAnswer() {
@@ -804,6 +805,8 @@ ${answer}`;
   async function copyTranscript() {
     await navigator.clipboard.writeText(transcript);
   }
+
+  const answerOnlyView = viewMode === "stealth" || viewMode === "focus";
 
   return (
     <main className={`shell ${compact ? "compactShell" : ""} ${launcherMode ? "launcherShell" : ""} ${viewMode}Mode`}>
@@ -832,7 +835,7 @@ ${answer}`;
           <button title="Compact mode" onClick={toggleCompact} className={compact ? "active iconButton" : "iconButton"}>
             <Minimize2 size={16} />
           </button>
-          <button title="View mode" onClick={() => setModeView(viewMode === "full" ? "glass" : viewMode === "glass" ? "stealth" : "full")} className="iconButton">
+          <button title="View mode" onClick={cycleViewMode} className="iconButton">
             <GalleryVerticalEnd size={16} />
           </button>
           <button title="Lock resizing" onClick={toggleResizeLock} className={resizeLocked ? "active iconButton" : "iconButton"}>
@@ -847,7 +850,7 @@ ${answer}`;
         </div>
       </header>
 
-      {viewMode !== "stealth" && <section className="snapBar" aria-label="Snap overlay">
+      {!answerOnlyView && <section className="snapBar" aria-label="Snap overlay">
         <button title="Snap top left" onClick={() => snap("top-left")}><CornerUpLeft size={15} /></button>
         <button title="Snap top right" onClick={() => snap("top-right")}><CornerUpRight size={15} /></button>
         <button title="Snap bottom left" onClick={() => snap("bottom-left")}><CornerDownLeft size={15} /></button>
@@ -855,11 +858,11 @@ ${answer}`;
         <span>Move: Ctrl+Alt+Arrows</span>
       </section>}
 
-      {viewMode !== "stealth" && <section className="imageStatus">
+      {!answerOnlyView && <section className="imageStatus">
         {lastImageStatus} · {lastOcrStatus} · {screenContextStatus} · {lastDetectionStatus}
       </section>}
 
-      {viewMode !== "stealth" && <section className="sessionBar">
+      {!answerOnlyView && <section className="sessionBar">
         <button className={sessionStartedAt ? "active" : ""} onClick={toggleSession}>
           <Power size={15} />
           {sessionStartedAt ? formatElapsed(sessionElapsedSeconds) : "Start"}
@@ -875,40 +878,41 @@ ${answer}`;
         <span>Shortcuts: Ctrl+Alt+C context · D detect · A audio · K copy · P click-through</span>
       </section>}
 
-      {sessionStatus && viewMode !== "stealth" && <section className="sessionStatus">{sessionStatus}</section>}
+      {sessionStatus && !answerOnlyView && <section className="sessionStatus">{sessionStatus}</section>}
 
-      {viewMode !== "stealth" && (
+      {!answerOnlyView && (
         <section className="viewSwitcher" aria-label="View mode">
           <button className={viewMode === "full" ? "selected" : ""} onClick={() => setModeView("full")}>Full</button>
           <button className={viewMode === "glass" ? "selected" : ""} onClick={() => setModeView("glass")}>Glass</button>
           <button onClick={() => setModeView("stealth")}>Stealth</button>
+          <button onClick={() => setModeView("focus")}>Focus</button>
         </section>
       )}
 
-      {viewMode === "stealth" ? (
+      {answerOnlyView ? (
         <section className="stealthAnswer">
           <div className="stealthMeta">
             <span className={status === "ready" ? "dot ok" : "dot"} />
             <span>{status === "analyzing" ? "Analyzing" : status === "capturing" ? "Capturing" : mode}</span>
             <button title="Analyze" onClick={() => analyze(transcriptRef.current, modeRef.current, "manual", screenContextRef.current)} disabled={status === "analyzing" || status === "capturing"}>Analyze</button>
-            <button title="Switch view mode" onClick={cycleViewMode}>Full</button>
+            <button title="Switch to full view" onClick={() => setModeView("full")}>Full</button>
           </div>
           <pre>{status === "analyzing" ? "Reading screen and transcript..." : status === "capturing" ? "Capturing screen context..." : answer}</pre>
         </section>
       ) : null}
 
-      {!compact && viewMode !== "stealth" && <section className="statusStrip">
+      {!compact && !answerOnlyView && <section className="statusStrip">
         <span className={teamsStatus?.detected ? "dot ok" : "dot"} />
         <span>{teamsStatus?.message ?? "Checking Microsoft Teams..."}</span>
       </section>}
 
-      {viewMode !== "stealth" && <section className="modeBar" aria-label="Assistant mode">
+      {!answerOnlyView && <section className="modeBar" aria-label="Assistant mode">
         <button className={mode === "coding" ? "selected" : ""} onClick={() => setMode("coding")}>Coding</button>
         <button className={mode === "behavioral" ? "selected" : ""} onClick={() => setMode("behavioral")}>Behavioral</button>
         <button className={mode === "meeting" ? "selected" : ""} onClick={() => setMode("meeting")}>Meeting</button>
       </section>}
 
-      {viewMode !== "stealth" && <section className="controls">
+      {!answerOnlyView && <section className="controls">
         <button className="primary" onClick={() => analyze(transcriptRef.current, modeRef.current, "manual", screenContextRef.current)} disabled={status === "analyzing" || status === "capturing"}>
           <Sparkles size={17} />
           Analyze
@@ -935,7 +939,7 @@ ${answer}`;
         </button>
       </section>}
 
-      {viewMode !== "stealth" && <section className="answerPanel">
+      {!answerOnlyView && <section className="answerPanel">
         <div className="panelHeader">
           <span>Suggestion</span>
           <div className="panelActions">
