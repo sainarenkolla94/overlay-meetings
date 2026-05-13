@@ -26,6 +26,7 @@ Implemented:
 - Auto-analyze toggle with configurable interval.
 - Question detection toggle for transcript-driven auto answers.
 - Session start/stop timer and clear-all control.
+- Markdown session export.
 - In-session suggestion history.
 - Compact mode, resize lock, corner snapping, and keyboard nudging.
 - View modes: Full, Glass, and Stealth.
@@ -74,12 +75,17 @@ This starts the Vite renderer and launches the Electron overlay.
 
 1. Open the overlay.
 2. Click the settings icon.
-3. Choose a provider:
+3. Choose a provider preset:
+   - `Gemini answers + Groq transcription`
+   - `OpenRouter answers + Groq transcription`
+   - `OpenAI answers + OpenAI transcription`
+4. Choose a provider manually if needed:
    - `OpenAI` for screenshot + transcript analysis.
    - `OpenRouter` for free-model text-only testing.
-4. Add the API key for your selected provider.
-5. Set your preferred coding language, for example `Python`, `Java`, `TypeScript`, `C++`, or `C#`.
-6. Save settings.
+   - `Gemini` for screenshot + transcript analysis.
+5. Add the API key for your selected provider.
+6. Set your preferred coding language, for example `Python`, `Java`, `TypeScript`, `C++`, or `C#`.
+7. Save settings.
 
 Settings are stored locally in Electron's app user data directory. Do not commit API keys to GitHub.
 
@@ -213,10 +219,11 @@ Use this flow on the Windows laptop:
 1. Run the app with `npm run dev`.
 2. Open Microsoft Teams.
 3. Join or start a test meeting.
-4. Click `Start` in the session bar.
+4. Click `Start` in the session bar. Start switches to Stealth mode, enables Detect, refreshes capture sources, starts the timer, and attempts to start Audio.
 5. Put a coding question, code snippet, error message, or shared screen content on the display.
 6. Press `Ctrl + Shift + Space`.
 7. Check whether the overlay returns a useful suggestion.
+8. Click `Export` to save a Markdown record of the transcript, screen context, current answer, and history.
 
 You can also click `Auto` to rerun analysis periodically. The interval is controlled in Settings by `Auto analyze interval seconds`. Keep this conservative when using rate-limited free models.
 
@@ -229,6 +236,22 @@ Detected: can you
 ```
 
 If an answer stops early, click `Continue` in the Suggestion panel to ask the provider to finish from the previous answer.
+
+## Session Export
+
+Click `Export` to save a Markdown file containing:
+
+- provider metadata,
+- current answer,
+- transcript,
+- saved screen context,
+- suggestion history.
+
+Exports are saved under:
+
+```text
+Documents/Overlay Meetings Sessions
+```
 
 ## Audio Testing
 

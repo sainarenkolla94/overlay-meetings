@@ -11,6 +11,8 @@ import type {
   CaptureContextResult,
   CaptureSource,
   DesktopAudioSource,
+  ExportSessionInput,
+  ExportSessionResult,
   TeamsStatus,
   TranscribeAudioInput,
   TranscribeAudioResult,
@@ -74,6 +76,50 @@ function saveSettings(settings: AppSettings) {
   cachedSettings = { ...defaultSettings, ...settings };
   writeFileSync(settingsPath(), JSON.stringify(cachedSettings, null, 2));
   return cachedSettings;
+}
+
+function slugDate() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
+function exportSession(input: ExportSessionInput): ExportSessionResult {
+  const sessionsDirectory = path.join(app.getPath("documents"), "Overlay Meetings Sessions");
+  mkdirSync(sessionsDirectory, { recursive: true });
+  const filePath = path.join(sessionsDirectory, `session-${slugDate()}.md`);
+  const history = input.history
+    .map(
+      (item, index) => `### ${index + 1}. ${item.createdAt} · ${item.mode}
+
+${item.answer}`
+    )
+    .join("\n\n");
+
+  const contents = `# Overlay Meetings Session
+
+- Provider: ${input.metadata.provider}
+- Transcription provider: ${input.metadata.transcriptionProvider}
+- Started at: ${input.metadata.startedAt ?? "Not recorded"}
+- Exported at: ${input.metadata.exportedAt}
+
+## Current Answer
+
+${input.answer || "(No answer.)"}
+
+## Transcript
+
+${input.transcript || "(No transcript.)"}
+
+## Screen Context
+
+${input.screenContext || "(No saved screen context.)"}
+
+## Suggestion History
+
+${history || "(No suggestion history.)"}
+`;
+
+  writeFileSync(filePath, contents, "utf8");
+  return { filePath };
 }
 
 function createOverlayWindow() {
@@ -408,7 +454,16 @@ function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings, ocrTex
 
 Use the screenshot and recent transcript together. If a screenshot is attached, read the visible screen content directly even when the transcript is empty. Prioritize visible problem statements, code, examples, constraints, and error messages from the screenshot. Only say content is missing if neither the screenshot nor transcript contains enough detail.
 
-For coding questions, return a complete answer using this exact structure:
+If accumulated screen context is present, treat it as the primary source because it may contain multiple screenshots, multiple pages, and multiple questions. Captures are labeled as "--- Capture 1 ---", "--- Capture 2 ---", and so on. Read every capture block in order, combine related fragments across adjacent captures, and use the latest screenshot/OCR only as additional context, not as a replacement for accumulated screen context.
+
+If the content contains multiple questions across one or more capture blocks, answer every detected question. Do not stop after the first question and do not answer only the latest capture.
+
+If the content is multiple choice, do not provide a coding solution format or explanations. Return only a compact answer key:
+1. <short question identifier if useful>: <option letter/number>. <option text if visible>
+2. <short question identifier if useful>: <option letter/number>. <option text if visible>
+Keep identifiers brief, such as the first few words or topic name. Do not repeat long questions. Continue numbering until every visible question is answered. If options are split across captures, compare all visible options before choosing. If a specific question cannot be determined, include that question number and say what is missing.
+
+For non-MCQ coding questions, return a complete answer using this exact structure:
 Detected:
 Approach:
 Code:
@@ -454,7 +509,7 @@ async function callOpenAi(settings: AppSettings, input: AnalyzeInput, screenshot
           content
         }
       ],
-      max_output_tokens: 900
+      max_output_tokens: 1600
     })
   });
 
@@ -523,7 +578,7 @@ Provider note: OpenRouter screenshot mode is disabled, so use only the transcrip
           content: userContent
         }
       ],
-      max_tokens: 900,
+      max_tokens: 1600,
       temperature: 0.3
     })
   });
@@ -587,7 +642,7 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
 Provider note: Gemini mode is enabled. A screenshot image part is attached when screenshot sending is enabled. If the transcript is empty, inspect the screenshot and answer from the visible screen content.
 Screenshot status: ${settings.sendScreenshotToGemini && preparedScreenshot ? `attached as ${preparedScreenshot.mimeType}, ${preparedScreenshot.width}x${preparedScreenshot.height}` : "not attached"}.
 
-Before solving, silently read the screenshot. If you can see a coding problem, start with "Detected:" followed by a 1-line problem summary, then give the concise overlay answer. Do not ask for the problem statement unless the screenshot is blank, unreadable, or unrelated.`
+Before answering, silently read all accumulated screen context plus the latest screenshot. If you can see a multiple-choice question, answer with the option only and a short reason. If you can see a non-MCQ coding problem, start with "Detected:" followed by a 1-line problem summary, then give the concise overlay answer. Do not ask for the problem statement unless the screenshot/context is blank, unreadable, or unrelated.`
     }
   ];
 
@@ -687,6 +742,8 @@ ipcMain.handle("capture:context", async (): Promise<CaptureContextResult> => {
 ipcMain.handle("audio:sources", () => getDesktopAudioSources());
 
 ipcMain.handle("audio:transcribe", (_event, input: TranscribeAudioInput) => transcribeAudio(input));
+
+ipcMain.handle("session:export", (_event, input: ExportSessionInput) => exportSession(input));
 
 ipcMain.handle("window:click-through", (_event, enabled: boolean) => {
   overlayWindow?.setIgnoreMouseEvents(enabled, { forward: true });

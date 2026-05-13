@@ -3,6 +3,7 @@ import {
   Brain,
   CheckCircle2,
   Clipboard,
+  Download,
   CornerDownLeft,
   CornerDownRight,
   CornerUpLeft,
@@ -63,6 +64,7 @@ const defaultSettings: AppSettings = {
 
 type Mode = "coding" | "behavioral" | "meeting";
 type ViewMode = "full" | "glass" | "stealth";
+type ProviderPreset = "gemini-groq" | "openrouter-groq" | "openai-only";
 type SuggestionItem = {
   id: number;
   answer: string;
@@ -87,6 +89,7 @@ const overlayApi =
     getCaptureSources: async () => [],
     getDesktopAudioSources: async () => [],
     transcribeAudio: async () => ({ text: "" }),
+    exportSession: async () => ({ filePath: "" }),
     getTeamsStatus: async () => ({
       detected: false,
       platform: navigator.platform.toLowerCase().includes("win") ? "win32" : "darwin",
@@ -106,6 +109,7 @@ const overlayApi =
 function statusLabel(status: AssistantStatus) {
   if (status === "listening") return "Listening";
   if (status === "analyzing") return "Analyzing";
+  if (status === "capturing") return "Capturing context";
   if (status === "ready") return "Answer ready";
   if (status === "error") return "Needs attention";
   return "Idle";
@@ -128,6 +132,7 @@ function App() {
   const [lastOcrStatus, setLastOcrStatus] = useState("OCR not run yet");
   const [lastDetectionStatus, setLastDetectionStatus] = useState("Detect idle");
   const [screenContextStatus, setScreenContextStatus] = useState("No saved screen context");
+  const [sessionStatus, setSessionStatus] = useState("");
   const [error, setError] = useState("");
   const [autoAnalyze, setAutoAnalyze] = useState(false);
   const [questionDetect, setQuestionDetect] = useState(false);
@@ -150,6 +155,8 @@ function App() {
   const lastQuestionAnalyzeAtRef = useRef(0);
   const lastAnalyzedTranscriptRef = useRef("");
   const analyzingRef = useRef(false);
+  const contextBatchAnalyzedRef = useRef(false);
+  const contextCaptureCountRef = useRef(0);
 
   useEffect(() => {
     transcriptRef.current = transcript;
@@ -192,7 +199,7 @@ function App() {
     void overlayApi.setResizable(false);
 
     const removeAnalyze = overlayApi.onAnalyzeShortcut(() => {
-      void analyze(transcriptRef.current, modeRef.current);
+      void analyze(transcriptRef.current, modeRef.current, "manual", screenContextRef.current);
     });
     const removeToggle = overlayApi.onToggleVisibility(() => setClickThrough(false));
     const removeGlobalAction = overlayApi.onGlobalAction((action) => {
@@ -236,7 +243,7 @@ function App() {
     const interval = window.setInterval(() => {
       if (!autoAnalyzeRef.current || analyzingRef.current) return;
       if (!transcriptRef.current.trim() && !settings.sendScreenshotToOpenRouter && settings.provider === "openrouter") return;
-      void analyze(transcriptRef.current, modeRef.current, "auto");
+      void analyze(transcriptRef.current, modeRef.current, "auto", screenContextRef.current);
     }, intervalMs);
 
     return () => window.clearInterval(interval);
@@ -354,6 +361,40 @@ function App() {
     setShowSettings(false);
   }
 
+  function applyProviderPreset(preset: ProviderPreset) {
+    if (preset === "gemini-groq") {
+      setDraftSettings({
+        ...draftSettings,
+        provider: "gemini",
+        transcriptionProvider: "groq",
+        geminiModel: "gemini-2.5-flash",
+        groqTranscriptionModel: "whisper-large-v3-turbo",
+        sendScreenshotToGemini: true
+      });
+    }
+
+    if (preset === "openrouter-groq") {
+      setDraftSettings({
+        ...draftSettings,
+        provider: "openrouter",
+        transcriptionProvider: "groq",
+        openRouterModel: "google/gemma-4-26b-a4b-it:free",
+        groqTranscriptionModel: "whisper-large-v3-turbo",
+        sendScreenshotToOpenRouter: true
+      });
+    }
+
+    if (preset === "openai-only") {
+      setDraftSettings({
+        ...draftSettings,
+        provider: "openai",
+        transcriptionProvider: "openai",
+        model: "gpt-4.1-mini",
+        transcriptionModel: "gpt-4o-mini-transcribe"
+      });
+    }
+  }
+
   function formatElapsed(totalSeconds: number) {
     const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
     const seconds = (totalSeconds % 60).toString().padStart(2, "0");
@@ -370,6 +411,10 @@ function App() {
       return;
     }
     setSessionStartedAt(new Date());
+    setQuestionDetect(true);
+    setModeView("stealth");
+    void refreshCaptureSources();
+    void startSystemAudio();
   }
 
   function clearSession() {
@@ -382,39 +427,76 @@ function App() {
     setLastOcrStatus("OCR not run yet");
     setLastDetectionStatus("Detect idle");
     setError("");
+    setSessionStatus("");
   }
 
-  function mergeScreenContext(existing: string, next: string) {
-    const seen = new Set(existing.split("\n").map((line) => line.trim().toLowerCase()).filter(Boolean));
-    const merged = existing.trim() ? [existing.trim()] : [];
-    const newLines = next
+  async function exportSession() {
+    try {
+      const result = await overlayApi.exportSession({
+        transcript,
+        screenContext,
+        answer,
+        history: history.map((item) => ({
+          answer: item.answer,
+          mode: item.mode,
+          createdAt: item.createdAt
+        })),
+        metadata: {
+          provider: settings.provider,
+          transcriptionProvider: settings.transcriptionProvider,
+          startedAt: sessionStartedAt?.toISOString(),
+          exportedAt: new Date().toISOString()
+        }
+      });
+      setSessionStatus(`Exported: ${result.filePath}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not export session.");
+    }
+  }
+
+  function appendScreenContextCapture(existing: string, next: string) {
+    const captureNumber = contextCaptureCountRef.current + 1;
+    const cleanedText = next
       .split("\n")
       .map((line) => line.trim())
-      .filter((line) => line.length > 2)
-      .filter((line) => {
-        const key = line.toLowerCase();
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      .filter((line) => line.length > 1)
+      .join("\n")
+      .trim();
 
-    if (newLines.length) {
-      merged.push(newLines.join("\n"));
-    }
+    if (!cleanedText) return existing.trim();
 
-    return merged.join("\n\n--- next capture ---\n\n").slice(-12000);
+    contextCaptureCountRef.current = captureNumber;
+    const captureBlock = `--- Capture ${captureNumber} ---\n${cleanedText}`;
+    const merged = existing.trim() ? `${existing.trim()}\n\n${captureBlock}` : captureBlock;
+
+    if (merged.length <= 30000) return merged;
+    return `${merged.slice(0, 15000)}\n\n--- middle content trimmed to fit request ---\n\n${merged.slice(-15000)}`;
   }
 
   async function addScreenContext() {
-    setStatus("analyzing");
+    setStatus("capturing");
     setError("");
     try {
+      const shouldStartFreshBatch = contextBatchAnalyzedRef.current;
+      if (shouldStartFreshBatch) {
+        contextBatchAnalyzedRef.current = false;
+        contextCaptureCountRef.current = 0;
+        setScreenContext("");
+        screenContextRef.current = "";
+        setTranscript("");
+        transcriptRef.current = "";
+        lastAnalyzedTranscriptRef.current = "";
+        setAnswer("Capturing a new question...");
+      }
       const result: CaptureContextResult = await overlayApi.captureContext();
       setLastCapture(result.screenshotDataUrl);
       setLastOcrStatus(result.ocrText ? `OCR extracted ${result.ocrText.length} chars` : "OCR extracted no text");
       setScreenContext((previous) => {
-        const merged = mergeScreenContext(previous, result.ocrText);
-        setScreenContextStatus(merged ? `Saved screen context: ${merged.length} chars` : "No text saved from capture");
+        const merged = appendScreenContextCapture(shouldStartFreshBatch ? "" : previous, result.ocrText);
+        screenContextRef.current = merged;
+        setScreenContextStatus(
+          merged ? `Saved ${contextCaptureCountRef.current} capture${contextCaptureCountRef.current === 1 ? "" : "s"}: ${merged.length} chars` : "No text saved from capture"
+        );
         return merged;
       });
       setStatus("ready");
@@ -426,23 +508,36 @@ function App() {
 
   function clearScreenContext() {
     setScreenContext("");
+    screenContextRef.current = "";
     setScreenContextStatus("No saved screen context");
+    contextBatchAnalyzedRef.current = false;
+    contextCaptureCountRef.current = 0;
   }
 
   async function analyze(
     transcriptForRequest = transcript,
     modeForRequest = mode,
-    source: "manual" | "auto" = "manual",
+    source: "manual" | "auto" | "continue" = "manual",
     screenContextForRequest = screenContext
   ) {
     if (analyzingRef.current) return;
     analyzingRef.current = true;
+    const shouldIgnoreOldContext = source !== "continue" && contextBatchAnalyzedRef.current;
+    const requestScreenContext = shouldIgnoreOldContext ? "" : screenContextForRequest;
+    if (shouldIgnoreOldContext) {
+      setScreenContext("");
+      screenContextRef.current = "";
+      setScreenContextStatus("No saved screen context");
+      contextBatchAnalyzedRef.current = false;
+      contextCaptureCountRef.current = 0;
+    }
     setStatus("analyzing");
+    setAnswer("");
     setError("");
     try {
       const result: AnalyzeResult = await overlayApi.analyzeNow({
         transcript: transcriptForRequest,
-        screenContext: screenContextForRequest,
+        screenContext: requestScreenContext,
         mode: modeForRequest
       });
       setAnswer(result.answer);
@@ -459,6 +554,7 @@ function App() {
       ].slice(0, 5));
       setLastCapture(result.screenshotDataUrl);
       lastAnalyzedTranscriptRef.current = transcriptForRequest.trim();
+      contextBatchAnalyzedRef.current = true;
       setStatus("ready");
       await refreshTeamsStatus();
     } catch (err) {
@@ -476,7 +572,7 @@ Previous answer appears incomplete. Continue and finish the answer from where it
 
 Previous answer:
 ${answer}`;
-    await analyze(continuationPrompt, modeRef.current, "manual", screenContextRef.current);
+    await analyze(continuationPrompt, modeRef.current, "continue", screenContextRef.current);
   }
 
   function toggleMic() {
@@ -722,8 +818,14 @@ ${answer}`;
           <RotateCcw size={15} />
           Clear all
         </button>
+        <button onClick={exportSession}>
+          <Download size={15} />
+          Export
+        </button>
         <span>Shortcuts: Ctrl+Alt+C context · D detect · A audio · K copy · P click-through</span>
       </section>}
+
+      {sessionStatus && viewMode !== "stealth" && <section className="sessionStatus">{sessionStatus}</section>}
 
       {viewMode !== "stealth" && (
         <section className="viewSwitcher" aria-label="View mode">
@@ -737,11 +839,11 @@ ${answer}`;
         <section className="stealthAnswer">
           <div className="stealthMeta">
             <span className={status === "ready" ? "dot ok" : "dot"} />
-            <span>{status === "analyzing" ? "Analyzing" : mode}</span>
-            <button title="Analyze" onClick={() => analyze()} disabled={status === "analyzing"}>Analyze</button>
+            <span>{status === "analyzing" ? "Analyzing" : status === "capturing" ? "Capturing" : mode}</span>
+            <button title="Analyze" onClick={() => analyze(transcriptRef.current, modeRef.current, "manual", screenContextRef.current)} disabled={status === "analyzing" || status === "capturing"}>Analyze</button>
             <button title="Switch view mode" onClick={cycleViewMode}>Full</button>
           </div>
-          <pre>{status === "analyzing" ? "Reading screen and transcript..." : answer}</pre>
+          <pre>{status === "analyzing" ? "Reading screen and transcript..." : status === "capturing" ? "Capturing screen context..." : answer}</pre>
         </section>
       ) : null}
 
@@ -757,11 +859,11 @@ ${answer}`;
       </section>}
 
       {viewMode !== "stealth" && <section className="controls">
-        <button className="primary" onClick={() => analyze()} disabled={status === "analyzing"}>
+        <button className="primary" onClick={() => analyze(transcriptRef.current, modeRef.current, "manual", screenContextRef.current)} disabled={status === "analyzing" || status === "capturing"}>
           <Sparkles size={17} />
           Analyze
         </button>
-        <button onClick={addScreenContext} disabled={status === "analyzing"}>
+        <button onClick={addScreenContext} disabled={status === "analyzing" || status === "capturing"}>
           <Clipboard size={17} />
           Context
         </button>
@@ -798,7 +900,13 @@ ${answer}`;
             </button>
           </div>
         </div>
-        {status === "analyzing" ? <div className="loader">Reading screen and transcript...</div> : <pre className={expandedAnswer ? "expandedAnswer" : ""}>{answer}</pre>}
+        {status === "analyzing" ? (
+          <div className="loader">Reading screen and transcript...</div>
+        ) : status === "capturing" ? (
+          <div className="loader">Capturing screen context...</div>
+        ) : (
+          <pre className={expandedAnswer ? "expandedAnswer" : ""}>{answer}</pre>
+        )}
         {error && <p className="error">{error}</p>}
       </section>}
 
@@ -864,6 +972,15 @@ ${answer}`;
                 <X size={15} />
               </button>
             </div>
+            <label>
+              Provider preset
+              <select defaultValue="" onChange={(event) => applyProviderPreset(event.target.value as ProviderPreset)}>
+                <option value="" disabled>Select preset</option>
+                <option value="gemini-groq">Gemini answers + Groq transcription</option>
+                <option value="openrouter-groq">OpenRouter answers + Groq transcription</option>
+                <option value="openai-only">OpenAI answers + OpenAI transcription</option>
+              </select>
+            </label>
             <label>
               Provider
               <select

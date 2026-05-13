@@ -1,4 +1,4 @@
-export type AssistantStatus = "idle" | "listening" | "analyzing" | "ready" | "error";
+export type AssistantStatus = "idle" | "listening" | "analyzing" | "capturing" | "ready" | "error";
 
 export type AppSettings = {
   provider: "openai" | "openrouter" | "gemini";
@@ -40,6 +40,27 @@ export type AnalyzeResult = {
 export type CaptureContextResult = {
   screenshotDataUrl?: string;
   ocrText: string;
+};
+
+export type ExportSessionInput = {
+  transcript: string;
+  screenContext: string;
+  answer: string;
+  history: Array<{
+    answer: string;
+    mode: AnalyzeInput["mode"];
+    createdAt: string;
+  }>;
+  metadata: {
+    provider: AppSettings["provider"];
+    transcriptionProvider: AppSettings["transcriptionProvider"];
+    startedAt?: string;
+    exportedAt: string;
+  };
+};
+
+export type ExportSessionResult = {
+  filePath: string;
 };
 
 export type DesktopAudioSource = {

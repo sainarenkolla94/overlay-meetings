@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 import type {
   AnalyzeInput,
   AppSettings,
+  ExportSessionInput,
   TranscribeAudioInput,
   WindowNudgeDirection,
   WindowSnapPosition
@@ -15,6 +16,7 @@ contextBridge.exposeInMainWorld("overlayApi", {
   getCaptureSources: () => ipcRenderer.invoke("capture:sources"),
   getDesktopAudioSources: () => ipcRenderer.invoke("audio:sources"),
   transcribeAudio: (input: TranscribeAudioInput) => ipcRenderer.invoke("audio:transcribe", input),
+  exportSession: (input: ExportSessionInput) => ipcRenderer.invoke("session:export", input),
   getTeamsStatus: () => ipcRenderer.invoke("teams:status"),
   setClickThrough: (enabled: boolean) => ipcRenderer.invoke("window:click-through", enabled),
   setResizable: (enabled: boolean) => ipcRenderer.invoke("window:resizable", enabled),

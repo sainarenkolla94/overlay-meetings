@@ -5,6 +5,8 @@ import type {
   CaptureContextResult,
   CaptureSource,
   DesktopAudioSource,
+  ExportSessionInput,
+  ExportSessionResult,
   TeamsStatus,
   TranscribeAudioInput,
   TranscribeAudioResult,
@@ -22,6 +24,7 @@ declare global {
       getCaptureSources: () => Promise<CaptureSource[]>;
       getDesktopAudioSources: () => Promise<DesktopAudioSource[]>;
       transcribeAudio: (input: TranscribeAudioInput) => Promise<TranscribeAudioResult>;
+      exportSession: (input: ExportSessionInput) => Promise<ExportSessionResult>;
       getTeamsStatus: () => Promise<TeamsStatus>;
       setClickThrough: (enabled: boolean) => Promise<void>;
       setResizable: (enabled: boolean) => Promise<void>;
