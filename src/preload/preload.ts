@@ -31,5 +31,10 @@ contextBridge.exposeInMainWorld("overlayApi", {
     const listener = () => callback();
     ipcRenderer.on("shortcut:toggle-visibility", listener);
     return () => ipcRenderer.removeListener("shortcut:toggle-visibility", listener);
+  },
+  onGlobalAction: (callback: (action: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, action: string) => callback(action);
+    ipcRenderer.on("shortcut:global-action", listener);
+    return () => ipcRenderer.removeListener("shortcut:global-action", listener);
   }
 });

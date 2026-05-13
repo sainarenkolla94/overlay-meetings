@@ -114,6 +114,10 @@ function registerShortcuts() {
   globalShortcut.unregisterAll();
   const settings = cachedSettings;
 
+  const sendAction = (action: string) => {
+    overlayWindow?.webContents.send("shortcut:global-action", action);
+  };
+
   globalShortcut.register(settings.triggerHotkey, () => {
     overlayWindow?.webContents.send("shortcut:analyze");
   });
@@ -132,6 +136,13 @@ function registerShortcuts() {
   globalShortcut.register("CommandOrControl+Alt+Down", () => nudgeWindow("down"));
   globalShortcut.register("CommandOrControl+Alt+Left", () => nudgeWindow("left"));
   globalShortcut.register("CommandOrControl+Alt+Right", () => nudgeWindow("right"));
+  globalShortcut.register("CommandOrControl+Alt+C", () => sendAction("add-context"));
+  globalShortcut.register("CommandOrControl+Alt+X", () => sendAction("clear-context"));
+  globalShortcut.register("CommandOrControl+Alt+D", () => sendAction("toggle-detect"));
+  globalShortcut.register("CommandOrControl+Alt+A", () => sendAction("toggle-audio"));
+  globalShortcut.register("CommandOrControl+Alt+K", () => sendAction("copy-answer"));
+  globalShortcut.register("CommandOrControl+Alt+P", () => sendAction("toggle-click-through"));
+  globalShortcut.register("CommandOrControl+Alt+V", () => sendAction("cycle-view"));
 }
 
 function nudgeWindow(direction: WindowNudgeDirection, amount = 24) {

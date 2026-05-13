@@ -99,7 +99,8 @@ const overlayApi =
     snapWindow: async () => undefined,
     hideOverlay: async () => undefined,
     onAnalyzeShortcut: () => () => undefined,
-    onToggleVisibility: () => () => undefined
+    onToggleVisibility: () => () => undefined,
+    onGlobalAction: () => () => undefined
   } satisfies Window["overlayApi"]);
 
 function statusLabel(status: AssistantStatus) {
@@ -182,38 +183,6 @@ function App() {
   }, [settings.openAiApiKey, settings.openRouterApiKey, settings.provider]);
 
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "v") {
-        event.preventDefault();
-        void cycleViewMode();
-      }
-      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "c") {
-        event.preventDefault();
-        void addScreenContext();
-      }
-      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "x") {
-        event.preventDefault();
-        clearScreenContext();
-      }
-      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "d") {
-        event.preventDefault();
-        setQuestionDetect((enabled) => !enabled);
-      }
-      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "a") {
-        event.preventDefault();
-        void toggleSystemAudio();
-      }
-      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        void copyAnswer();
-      }
-      if (event.ctrlKey && event.altKey && event.key.toLowerCase() === "p") {
-        event.preventDefault();
-        void toggleClickThrough();
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
     overlayApi.getSettings().then((loaded) => {
       setSettings(loaded);
       setDraftSettings(loaded);
@@ -226,13 +195,22 @@ function App() {
       void analyze(transcriptRef.current, modeRef.current);
     });
     const removeToggle = overlayApi.onToggleVisibility(() => setClickThrough(false));
+    const removeGlobalAction = overlayApi.onGlobalAction((action) => {
+      if (action === "add-context") void addScreenContext();
+      if (action === "clear-context") clearScreenContext();
+      if (action === "toggle-detect") setQuestionDetect((enabled) => !enabled);
+      if (action === "toggle-audio") void toggleSystemAudio();
+      if (action === "copy-answer") void copyAnswer();
+      if (action === "toggle-click-through") void toggleClickThrough();
+      if (action === "cycle-view") void cycleViewMode();
+    });
 
     const interval = window.setInterval(refreshTeamsStatus, 5000);
     return () => {
       removeAnalyze();
       removeToggle();
+      removeGlobalAction();
       window.clearInterval(interval);
-      window.removeEventListener("keydown", handleKeyDown);
       recognitionRef.current?.stop();
       stopSystemAudio();
     };

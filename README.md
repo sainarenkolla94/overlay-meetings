@@ -156,6 +156,8 @@ OpenRouter has a `Send screenshot to OpenRouter` setting. Keep it enabled when u
 
 On macOS during development, Electron maps `CommandOrControl` to Command. The target platform for this prototype is Windows.
 
+Most operational shortcuts are registered as Electron global shortcuts, so they should work even when Teams, Chrome, or LeetCode has focus.
+
 ## Screen Share Workflow
 
 To reduce visible cursor movement during screen sharing:

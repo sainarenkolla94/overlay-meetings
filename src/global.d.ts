@@ -31,6 +31,7 @@ declare global {
       hideOverlay: () => Promise<void>;
       onAnalyzeShortcut: (callback: () => void) => () => void;
       onToggleVisibility: (callback: () => void) => () => void;
+      onGlobalAction: (callback: (action: string) => void) => () => void;
     };
   }
 }
