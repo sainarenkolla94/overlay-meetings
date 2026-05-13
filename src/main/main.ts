@@ -206,7 +206,7 @@ function nudgeWindow(direction: WindowNudgeDirection, amount = 24) {
   if (direction === "left") next.x -= amount;
   if (direction === "right") next.x += amount;
 
-  overlayWindow.setBounds({ ...bounds, ...next }, true);
+  overlayWindow.setBounds({ ...bounds, ...next }, false);
 }
 
 function snapWindow(position: WindowSnapPosition) {
@@ -218,7 +218,7 @@ function snapWindow(position: WindowSnapPosition) {
   const x = position.endsWith("right") ? area.x + area.width - bounds.width - margin : area.x + margin;
   const y = position.startsWith("bottom") ? area.y + area.height - bounds.height - margin : area.y + margin;
 
-  overlayWindow.setBounds({ ...bounds, x, y }, true);
+  overlayWindow.setBounds({ ...bounds, x, y }, false);
 }
 
 function setLauncherMode(enabled: boolean) {
@@ -795,7 +795,7 @@ ipcMain.handle("window:resizable", (_event, enabled: boolean) => {
 ipcMain.handle("window:compact", (_event, enabled: boolean) => {
   if (!overlayWindow) return;
   overlayWindow.setResizable(!enabled);
-  overlayWindow.setSize(enabled ? compactSize.width : fullSize.width, enabled ? compactSize.height : fullSize.height, true);
+  overlayWindow.setSize(enabled ? compactSize.width : fullSize.width, enabled ? compactSize.height : fullSize.height, false);
 });
 
 ipcMain.handle("window:launcher", (_event, enabled: boolean) => {
