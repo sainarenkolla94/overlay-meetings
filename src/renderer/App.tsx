@@ -149,6 +149,8 @@ function App() {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const systemAudioRecorderRef = useRef<MediaRecorder | null>(null);
   const systemAudioStreamRef = useRef<MediaStream | null>(null);
+  const systemAudioSegmentTimerRef = useRef<number | null>(null);
+  const systemAudioListeningRef = useRef(false);
   const transcriptRef = useRef(transcript);
   const screenContextRef = useRef(screenContext);
   const modeRef = useRef(mode);
@@ -688,9 +690,32 @@ ${answer}`;
     for (const options of getSupportedAudioRecorderOptions()) {
       try {
         const recorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
+        const chunks: Blob[] = [];
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0) {
-            void transcribeAudioChunk(event.data, source);
+            chunks.push(event.data);
+          }
+        };
+        recorder.onstop = () => {
+          if (source === "system" && systemAudioSegmentTimerRef.current) {
+            window.clearTimeout(systemAudioSegmentTimerRef.current);
+            systemAudioSegmentTimerRef.current = null;
+          }
+
+          if (chunks.length) {
+            const mimeType = recorder.mimeType || chunks[0]?.type || "audio/webm";
+            void transcribeAudioChunk(new Blob(chunks, { type: mimeType }), source);
+          }
+
+          if (source === "system" && systemAudioListeningRef.current && systemAudioStreamRef.current) {
+            try {
+              const nextRecorder = createStartedRecorder(systemAudioStreamRef.current, "system");
+              systemAudioRecorderRef.current = nextRecorder;
+            } catch (err) {
+              setStatus("error");
+              setError(err instanceof Error ? err.message : "Could not restart system audio recorder.");
+              stopSystemAudio();
+            }
           }
         };
         recorder.onerror = () => {
@@ -698,7 +723,12 @@ ${answer}`;
           setError("System audio recorder failed.");
           stopSystemAudio();
         };
-        recorder.start(9000);
+        recorder.start();
+        if (source === "system") {
+          systemAudioSegmentTimerRef.current = window.setTimeout(() => {
+            if (recorder.state !== "inactive") recorder.stop();
+          }, 9000);
+        }
         return recorder;
       } catch (err) {
         lastError = err;
@@ -746,6 +776,7 @@ ${answer}`;
 
       systemAudioStreamRef.current = audioOnlyStream;
       systemAudioRecorderRef.current = recorder;
+      systemAudioListeningRef.current = true;
       setSystemAudioListening(true);
       setStatus("listening");
     } catch (err) {
@@ -756,6 +787,11 @@ ${answer}`;
   }
 
   function stopSystemAudio() {
+    systemAudioListeningRef.current = false;
+    if (systemAudioSegmentTimerRef.current) {
+      window.clearTimeout(systemAudioSegmentTimerRef.current);
+      systemAudioSegmentTimerRef.current = null;
+    }
     systemAudioRecorderRef.current?.state !== "inactive" && systemAudioRecorderRef.current?.stop();
     systemAudioRecorderRef.current = null;
     systemAudioStreamRef.current?.getTracks().forEach((track) => track.stop());
