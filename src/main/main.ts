@@ -30,7 +30,9 @@ const defaultSettings: AppSettings = {
   openAiApiKey: "",
   openRouterApiKey: "",
   geminiApiKey: "",
+  geminiApiKeys: "",
   groqApiKey: "",
+  groqApiKeys: "",
   model: "gpt-4.1-mini",
   openRouterModel: "google/gemma-4-26b-a4b-it:free",
   geminiModel: "gemini-2.5-flash",
@@ -54,6 +56,38 @@ const launcherSize = { width: 62, height: 62 };
 const minimumSize = { width: 340, height: 420 };
 let restoreBounds: Rectangle | null = null;
 let ocrWorker: Awaited<ReturnType<typeof createWorker>> | null = null;
+const keyPoolState = {
+  geminiIndex: 0,
+  groqIndex: 0,
+  cooldownUntil: new Map<string, number>()
+};
+
+function parseKeyPool(singleKey: string, keyPool: string) {
+  return Array.from(
+    new Set(
+      [singleKey, ...keyPool.split(/[\s,;]+/)]
+        .map((key) => key.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
+function isKeyCoolingDown(key: string) {
+  return (keyPoolState.cooldownUntil.get(key) ?? 0) > Date.now();
+}
+
+function coolDownKey(key: string, minutes = 20) {
+  keyPoolState.cooldownUntil.set(key, Date.now() + minutes * 60_000);
+}
+
+function getNextKey(provider: "gemini" | "groq", keys: string[]) {
+  const available = keys.filter((key) => !isKeyCoolingDown(key));
+  if (!available.length) return undefined;
+  const indexName = provider === "gemini" ? "geminiIndex" : "groqIndex";
+  const key = available[keyPoolState[indexName] % available.length];
+  keyPoolState[indexName] = (keyPoolState[indexName] + 1) % available.length;
+  return key;
+}
 
 function settingsPath() {
   return path.join(app.getPath("userData"), "settings.json");
@@ -455,30 +489,43 @@ async function transcribeWithOpenAi(input: TranscribeAudioInput): Promise<Transc
 }
 
 async function transcribeWithGroq(input: TranscribeAudioInput): Promise<TranscribeAudioResult> {
-  if (!cachedSettings.groqApiKey) {
+  const keys = parseKeyPool(cachedSettings.groqApiKey, cachedSettings.groqApiKeys);
+  if (!keys.length) {
     throw new Error("Groq API key is required for Groq audio transcription.");
   }
 
-  const body = new FormData();
-  body.append("model", cachedSettings.groqTranscriptionModel);
-  body.append("file", base64ToFile(input.base64Audio, input.mimeType));
-  body.append("response_format", "json");
+  let lastError = "";
+  for (let attempt = 0; attempt < keys.length; attempt += 1) {
+    const apiKey = getNextKey("groq", keys);
+    if (!apiKey) break;
+    const body = new FormData();
+    body.append("model", cachedSettings.groqTranscriptionModel);
+    body.append("file", base64ToFile(input.base64Audio, input.mimeType));
+    body.append("response_format", "json");
 
-  const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${cachedSettings.groqApiKey}`
-    },
-    body
-  });
+    const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`
+      },
+      body
+    });
 
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Groq transcription failed: ${response.status} ${text}`);
+    if (!response.ok) {
+      const text = await response.text();
+      lastError = `${response.status} ${text}`;
+      if (response.status === 429 || /quota|rate/i.test(text)) {
+        coolDownKey(apiKey);
+        continue;
+      }
+      continue;
+    }
+
+    const data = (await response.json()) as { text?: string };
+    return { text: data.text?.trim() ?? "" };
   }
 
-  const data = (await response.json()) as { text?: string };
-  return { text: data.text?.trim() ?? "" };
+  throw new Error(`Groq transcription failed for all configured keys.${lastError ? ` Last error: ${lastError}` : " All keys may be cooling down."}`);
 }
 
 function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings, ocrText = "") {
@@ -680,7 +727,8 @@ ${JSON.stringify(data, null, 2).slice(0, 1200)}`;
 }
 
 async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string, ocrText = "") {
-  if (!settings.geminiApiKey) {
+  const keys = parseKeyPool(settings.geminiApiKey, settings.geminiApiKeys);
+  if (!keys.length) {
     return "Add your Gemini API key in Settings, then press Analyze again.";
   }
 
@@ -706,35 +754,51 @@ Before answering, silently read all accumulated screen context plus the latest s
     });
   }
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.geminiModel)}:generateContent`,
-    {
-      method: "POST",
-      headers: {
-        "x-goog-api-key": settings.geminiApiKey,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts
+  let response: Response | undefined;
+  let lastError = "";
+  for (let attempt = 0; attempt < keys.length; attempt += 1) {
+    const apiKey = getNextKey("gemini", keys);
+    if (!apiKey) break;
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.geminiModel)}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts
+            }
+          ],
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 4096,
+            thinkingConfig: {
+              thinkingBudget: 0
+            }
           }
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 4096,
-          thinkingConfig: {
-            thinkingBudget: 0
-          }
-        }
-      })
-    }
-  );
+        })
+      }
+    );
 
-  if (!response.ok) {
+    if (response.ok) break;
     const text = await response.text();
-    throw new Error(`Gemini request failed: ${response.status} ${text}`);
+    lastError = `${response.status} ${text}`;
+    if (response.status === 429 || /quota|rate/i.test(text)) {
+      coolDownKey(apiKey);
+      response = undefined;
+      continue;
+    }
+    response = undefined;
+    continue;
+  }
+
+  if (!response?.ok) {
+    throw new Error(`Gemini request failed for all configured keys.${lastError ? ` Last error: ${lastError}` : " All keys may be cooling down."}`);
   }
 
   const data = (await response.json()) as {

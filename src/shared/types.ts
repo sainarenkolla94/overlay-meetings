@@ -6,7 +6,9 @@ export type AppSettings = {
   openAiApiKey: string;
   openRouterApiKey: string;
   geminiApiKey: string;
+  geminiApiKeys: string;
   groqApiKey: string;
+  groqApiKeys: string;
   model: string;
   openRouterModel: string;
   geminiModel: string;

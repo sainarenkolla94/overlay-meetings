@@ -46,7 +46,9 @@ const defaultSettings: AppSettings = {
   openAiApiKey: "",
   openRouterApiKey: "",
   geminiApiKey: "",
+  geminiApiKeys: "",
   groqApiKey: "",
+  groqApiKeys: "",
   model: "gpt-4.1-mini",
   openRouterModel: "google/gemma-4-26b-a4b-it:free",
   geminiModel: "gemini-2.5-flash",
@@ -204,15 +206,24 @@ function App() {
   }, [questionDetect]);
 
   const maskedKey = useMemo(() => {
+    const splitKeys = (value: string) => value.split(/[\s,;]+/).map((key) => key.trim()).filter(Boolean);
+    const keyPoolLabel = (singleKey: string, keyPool: string) => {
+      const keys = Array.from(new Set([singleKey, ...splitKeys(keyPool)].filter(Boolean)));
+      if (keys.length > 1) return `${keys.length} keys`;
+      const key = keys[0];
+      return key ? `${key.slice(0, 7)}...${key.slice(-4)}` : "No API key";
+    };
+
     const key =
       settings.provider === "openrouter"
         ? settings.openRouterApiKey
         : settings.provider === "gemini"
           ? settings.geminiApiKey
           : settings.openAiApiKey;
+    if (settings.provider === "gemini") return keyPoolLabel(settings.geminiApiKey, settings.geminiApiKeys);
     if (!key) return "No API key";
     return `${key.slice(0, 7)}...${key.slice(-4)}`;
-  }, [settings.openAiApiKey, settings.openRouterApiKey, settings.provider]);
+  }, [settings.geminiApiKey, settings.geminiApiKeys, settings.openAiApiKey, settings.openRouterApiKey, settings.provider]);
 
   useEffect(() => {
     overlayApi.getSettings().then((loaded) => {
@@ -284,24 +295,47 @@ function App() {
 
       const lastAnalyzed = lastAnalyzedTranscriptRef.current;
       const newText = currentTranscript.slice(lastAnalyzed.length).trim();
-      const candidateText = newText.length >= 24 ? newText : currentTranscript.slice(-900);
-      const cooldownMs = Math.max(settings.autoAnalyzeIntervalSeconds, 12) * 1000;
+      const candidateText = newText.length >= 12 ? newText : currentTranscript.slice(-900);
+      
+      // Use a fast 6-second cooldown for Detect mode to keep interaction seamless
+      const cooldownMs = 6000;
 
       if (Date.now() - lastQuestionAnalyzeAtRef.current < cooldownMs) return;
+      
+      // Auto-switch mode based on transcript content
+      const nextMode = detectModeSwitch(candidateText, modeRef.current);
+      if (nextMode !== modeRef.current) {
+        setMode(nextMode);
+        modeRef.current = nextMode;
+      }
+
       if (!isLikelyQuestion(candidateText, modeRef.current)) return;
 
       setLastDetectionStatus(explainDetection(candidateText, modeRef.current));
       lastQuestionAnalyzeAtRef.current = Date.now();
       lastAnalyzedTranscriptRef.current = currentTranscript;
       void analyze(currentTranscript, modeRef.current, "auto", screenContextRef.current);
-    }, 1800);
+    }, 3000);
 
     return () => window.clearTimeout(timeout);
   }, [transcript, questionDetect, settings.autoAnalyzeIntervalSeconds]);
 
+  function detectModeSwitch(text: string, currentMode: Mode): Mode {
+    const normalized = text.toLowerCase();
+    const behavioralPhrases = ["time you", "conflict", "manager", "disagree", "proud of", "weakness", "strength", "leadership"];
+    const codingPhrases = ["array", "tree", "hash map", "string", "complexity", "optimize", "leetcode", "function", "code"];
+    
+    const recent = normalized.slice(-300);
+    
+    if (behavioralPhrases.some(p => recent.includes(p))) return "behavioral";
+    if (codingPhrases.some(p => recent.includes(p))) return "coding";
+    
+    return currentMode;
+  }
+
   function isLikelyQuestion(text: string, currentMode: Mode) {
     const normalized = text.toLowerCase().replace(/\s+/g, " ").trim();
-    if (normalized.length < 24) return false;
+    if (normalized.length < 12) return false;
 
     const questionPhrases = [
       "?",
@@ -310,12 +344,14 @@ function App() {
       "would you",
       "how would",
       "how do",
+      "how about",
       "what is",
+      "what's",
       "what are",
       "why",
       "explain",
       "walk me through",
-      "tell me about",
+      "tell me",
       "describe",
       "design",
       "debug",
@@ -326,7 +362,12 @@ function App() {
       "approach",
       "complexity",
       "edge case",
-      "test case"
+      "test case",
+      "do you know",
+      "have you used",
+      "are you familiar",
+      "let's talk about",
+      "can we"
     ];
 
     if (questionPhrases.some((phrase) => normalized.includes(phrase))) return true;
@@ -343,7 +384,9 @@ function App() {
         "binary tree",
         "linked list",
         "hash map",
-        "dynamic programming"
+        "dynamic programming",
+        "optimize",
+        "brute force"
       ].some((phrase) => normalized.includes(phrase));
     }
 
@@ -562,8 +605,14 @@ function App() {
     setAnswer("");
     setError("");
     try {
+      // Prevent context overload by truncating long transcripts
+      let safeTranscript = transcriptForRequest;
+      if (safeTranscript.length > 3000) {
+        safeTranscript = "(...earlier transcript truncated...)\n" + safeTranscript.slice(-3000);
+      }
+
       const result: AnalyzeResult = await overlayApi.analyzeNow({
-        transcript: transcriptForRequest,
+        transcript: safeTranscript,
         screenContext: requestScreenContext,
         mode: modeForRequest,
         useScreenshot: options.useScreenshot,
@@ -1187,12 +1236,14 @@ ${answer}`;
               />
             </label>
             <label>
-              Groq API key
-              <input
-                type="password"
-                value={draftSettings.groqApiKey}
-                onChange={(event) => setDraftSettings({ ...draftSettings, groqApiKey: event.target.value })}
-                placeholder="gsk_..."
+              Groq API keys
+              <textarea
+                className="keyPoolInput"
+                value={draftSettings.groqApiKeys || draftSettings.groqApiKey}
+                onChange={(event) =>
+                  setDraftSettings({ ...draftSettings, groqApiKeys: event.target.value, groqApiKey: "" })
+                }
+                placeholder={"gsk_...\ngsk_..."}
               />
             </label>
             <label>
@@ -1213,12 +1264,14 @@ ${answer}`;
               Send screenshot to OpenRouter
             </label>
             <label>
-              Gemini API key
-              <input
-                type="password"
-                value={draftSettings.geminiApiKey}
-                onChange={(event) => setDraftSettings({ ...draftSettings, geminiApiKey: event.target.value })}
-                placeholder="AIza..."
+              Gemini API keys
+              <textarea
+                className="keyPoolInput"
+                value={draftSettings.geminiApiKeys || draftSettings.geminiApiKey}
+                onChange={(event) =>
+                  setDraftSettings({ ...draftSettings, geminiApiKeys: event.target.value, geminiApiKey: "" })
+                }
+                placeholder={"AIza...\nAIza..."}
               />
             </label>
             <label>

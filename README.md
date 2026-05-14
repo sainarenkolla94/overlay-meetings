@@ -48,8 +48,8 @@ Not implemented yet:
 - Microsoft Teams desktop app for Windows testing.
 - OpenAI API key.
   - Optional: OpenRouter API key for free-model testing.
-  - Optional: Gemini API key for text/screenshot answer generation.
-  - Optional: Groq API key for free-tier speech-to-text testing.
+  - Optional: one or more Gemini API keys for text/screenshot answer generation.
+  - Optional: one or more Groq API keys for free-tier speech-to-text testing.
 
 ChatGPT Plus is not enough for automated app usage. This app needs an API key because it calls model APIs directly.
 
@@ -83,7 +83,7 @@ This starts the Vite renderer and launches the Electron overlay.
    - `OpenAI` for screenshot + transcript analysis.
    - `OpenRouter` for free-model text-only testing.
    - `Gemini` for screenshot + transcript analysis.
-5. Add the API key for your selected provider.
+5. Add the API key for your selected provider. Gemini and Groq support multiple keys, one per line.
 6. Set your preferred coding language, for example `Python`, `Java`, `TypeScript`, `C++`, or `C#`.
 7. Save settings.
 
@@ -101,7 +101,7 @@ https://aistudio.google.com/app/apikey
 
 2. In app Settings, set Provider to `Gemini`.
 
-3. Paste the Gemini API key.
+3. Paste one or more Gemini API keys. Use one key per line.
 
 4. Use the default model:
 
@@ -118,6 +118,8 @@ Gemini mode calls:
 ```text
 https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
 ```
+
+When multiple Gemini keys are configured, the app rotates through them round-robin. If a key hits quota or rate limits, the app temporarily cools it down and tries the next configured key.
 
 ## OpenRouter Testing
 
@@ -266,6 +268,7 @@ Current behavior:
 - Groq default model: `whisper-large-v3-turbo`.
 - Appends transcribed audio as `[Interviewer/System] ...`.
 - Works best on Windows when desktop audio capture is available.
+- Groq supports multiple API keys in Settings, one per line. The app rotates through them and temporarily skips rate-limited keys.
 
 Recommended low-cost test setup:
 
