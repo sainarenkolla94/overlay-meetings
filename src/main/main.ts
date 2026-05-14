@@ -534,7 +534,7 @@ function buildAssistantPrompt(input: AnalyzeInput, settings: AppSettings, ocrTex
 
 Use only the recent transcript below. Do not use or mention screenshots, screen context, OCR, or missing screen content.
 
-Produce a natural answer the user can say out loud. Keep it concise and conversational: 3-6 bullet points or a short paragraph. If the transcript contains multiple possible questions, answer the latest clear question. If the transcript is incomplete, give the best brief answer and mention the missing detail in one short line.
+Produce a natural, highly conversational answer that the user can read out loud verbatim. Instead of giving a sterile or robotic answer, weave the solution into a personal narrative. For example, use phrases like "In my past experience, I used...", "I typically approach this by...", or "When I faced a similar issue, I found that...". Keep it concise and easy to say: 3-6 short bullet points or a brief paragraph. If the transcript contains multiple possible questions, answer the latest clear question. If the transcript is incomplete, give the best brief answer and mention the missing detail in one short line.
 
 Recent transcript:
 ${input.transcript || "(No transcript captured yet.)"}`;
@@ -544,7 +544,7 @@ ${input.transcript || "(No transcript captured yet.)"}`;
     input.mode === "coding"
       ? `You are a discreet coding interview assistant. Produce a concise answer for the overlay. Prefer ${settings.preferredLanguage}. Include: key idea, steps, edge cases, time and space complexity, and code only if enough detail is visible.`
       : input.mode === "behavioral"
-        ? "You are a behavioral interview coach. Produce a short spoken answer, then a STAR outline."
+        ? "You are a behavioral interview coach. Produce a highly conversational spoken answer weaving in personal narrative (e.g., 'In my past experience...'), then provide a brief STAR outline."
         : "You are a meeting copilot. Produce a concise response, summary, and next action.";
 
   return `${modeInstruction}
@@ -760,7 +760,7 @@ Before answering, silently read all accumulated screen context plus the latest s
     const apiKey = getNextKey("gemini", keys);
     if (!apiKey) break;
     response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.geminiModel)}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.geminiModel)}:streamGenerateContent?alt=sse`,
       {
         method: "POST",
         headers: {
@@ -797,39 +797,45 @@ Before answering, silently read all accumulated screen context plus the latest s
     continue;
   }
 
-  if (!response?.ok) {
+  if (!response?.ok || !response.body) {
     throw new Error(`Gemini request failed for all configured keys.${lastError ? ` Last error: ${lastError}` : " All keys may be cooling down."}`);
   }
 
-  const data = (await response.json()) as {
-    candidates?: Array<{
-      finishReason?: string;
-      content?: {
-        parts?: Array<{ text?: string }>;
-      };
-    }>;
-    error?: { message?: string };
-  };
+  let fullText = "";
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf8");
 
-  if (data.error) {
-    throw new Error(`Gemini error: ${data.error.message ?? "unknown error"}`);
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n");
+      
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const dataStr = line.slice(6).trim();
+          if (dataStr === "[DONE]") continue;
+          if (!dataStr) continue;
+          
+          try {
+            const data = JSON.parse(dataStr);
+            const textPart = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (textPart) {
+              fullText += textPart;
+              overlayWindow?.webContents.send("assistant:stream", textPart);
+            }
+          } catch (e) {
+            // Ignore parse errors on partial chunks
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
   }
 
-  const firstCandidate = data.candidates?.[0];
-  const text = firstCandidate?.content?.parts?.map((part) => part.text).filter(Boolean).join("\n").trim();
-  if (text) {
-    return firstCandidate?.finishReason && firstCandidate.finishReason !== "STOP"
-      ? `${text}
-
-[Gemini finish reason: ${firstCandidate.finishReason}]`
-      : text;
-  }
-
-  const finishReason = firstCandidate?.finishReason ? ` Finish reason: ${firstCandidate.finishReason}.` : "";
-  return `Gemini returned no message content.${finishReason}
-
-Raw response:
-${JSON.stringify(data, null, 2).slice(0, 1200)}`;
+  return fullText || "Gemini returned no message content.";
 }
 
 ipcMain.handle("settings:get", () => cachedSettings);

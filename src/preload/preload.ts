@@ -25,6 +25,11 @@ contextBridge.exposeInMainWorld("overlayApi", {
   nudgeWindow: (direction: WindowNudgeDirection, amount?: number) => ipcRenderer.invoke("window:nudge", direction, amount),
   snapWindow: (position: WindowSnapPosition) => ipcRenderer.invoke("window:snap", position),
   hideOverlay: () => ipcRenderer.invoke("window:hide"),
+  onAnalyzeStream: (callback: (chunk: string) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, chunk: string) => callback(chunk);
+    ipcRenderer.on("assistant:stream", listener);
+    return () => ipcRenderer.removeListener("assistant:stream", listener);
+  },
   onAnalyzeShortcut: (callback: () => void) => {
     const listener = () => callback();
     ipcRenderer.on("shortcut:analyze", listener);

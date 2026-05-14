@@ -249,11 +249,17 @@ function App() {
       if (action === "toggle-bubble") void toggleLauncherMode();
     });
 
+    const removeStream = overlayApi.onAnalyzeStream((chunk) => {
+      setStatus("ready");
+      setAnswer((prev) => prev + chunk);
+    });
+
     const interval = window.setInterval(refreshTeamsStatus, 5000);
     return () => {
       removeAnalyze();
       removeToggle();
       removeGlobalAction();
+      removeStream();
       window.clearInterval(interval);
       recognitionRef.current?.stop();
       stopSystemAudio();
@@ -653,7 +659,20 @@ ${answer}`;
     await analyze(continuationPrompt, modeRef.current, "continue", screenContextRef.current);
   }
 
+  async function flushSystemAudio() {
+    if (systemAudioRecorderRef.current && systemAudioRecorderRef.current.state === "recording") {
+      try {
+        systemAudioRecorderRef.current.requestData();
+        // Wait briefly for the ondataavailable event to fire and the transcript to process
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      } catch (e) {
+        // Ignore if recorder is already stopped
+      }
+    }
+  }
+
   async function analyzeTranscriptOnly() {
+    await flushSystemAudio();
     await analyze(transcriptRef.current, modeRef.current, "manual", "", {
       useScreenshot: false,
       responseStyle: "spoken"
