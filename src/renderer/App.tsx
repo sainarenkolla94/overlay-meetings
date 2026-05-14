@@ -662,8 +662,10 @@ ${answer}`;
   async function flushSystemAudio() {
     if (systemAudioRecorderRef.current && systemAudioRecorderRef.current.state === "recording") {
       try {
-        systemAudioRecorderRef.current.requestData();
-        // Wait briefly for the ondataavailable event to fire and the transcript to process
+        // Calling stop() forces the onstop handler to transcribe the current chunk
+        // and immediately restart a new recorder because systemAudioListeningRef is still true.
+        systemAudioRecorderRef.current.stop();
+        // Wait briefly for the Groq transcription to finish processing
         await new Promise((resolve) => setTimeout(resolve, 800));
       } catch (e) {
         // Ignore if recorder is already stopped
