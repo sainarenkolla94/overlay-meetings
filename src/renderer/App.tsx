@@ -301,7 +301,13 @@ function App() {
 
       const lastAnalyzed = lastAnalyzedTranscriptRef.current;
       const newText = currentTranscript.slice(lastAnalyzed.length).trim();
-      const candidateText = newText.length >= 12 ? newText : currentTranscript.slice(-900);
+      
+      // Must have at least some new words since last analysis
+      if (newText.length < 8) return;
+      
+      // Always use a generous window of the most recent transcript
+      // so question phrases near the boundary are never missed
+      const candidateText = currentTranscript.slice(-900);
       
       // Use a 4-second cooldown to avoid duplicate triggers
       const cooldownMs = 4000;
