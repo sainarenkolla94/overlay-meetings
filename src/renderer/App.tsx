@@ -302,12 +302,11 @@ function App() {
       const lastAnalyzed = lastAnalyzedTranscriptRef.current;
       const newText = currentTranscript.slice(lastAnalyzed.length).trim();
       
-      // Must have enough new words since last analysis
-      if (newText.length < 10) return;
+      // Need a full sentence worth of new speech (~6-8 words)
+      if (newText.length < 40) return;
       
-      // Use a 4-second cooldown to avoid duplicate triggers
-      const cooldownMs = 4000;
-
+      // 8-second cooldown between triggers
+      const cooldownMs = 8000;
       if (Date.now() - lastQuestionAnalyzeAtRef.current < cooldownMs) return;
       
       // Auto-switch mode based on recent transcript window
@@ -318,10 +317,7 @@ function App() {
         modeRef.current = nextMode;
       }
 
-      // Only check NEW text for question phrases to avoid re-triggering on old questions
-      if (!isLikelyQuestion(newText, modeRef.current)) return;
-
-      setLastDetectionStatus(explainDetection(newText, modeRef.current));
+      setLastDetectionStatus(`New speech detected (${newText.length} chars)`);
       lastQuestionAnalyzeAtRef.current = Date.now();
       lastAnalyzedTranscriptRef.current = currentTranscript;
       void analyze(currentTranscript, modeRef.current, "auto", "", {
