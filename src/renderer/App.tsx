@@ -303,8 +303,8 @@ function App() {
       const newText = currentTranscript.slice(lastAnalyzed.length).trim();
       const candidateText = newText.length >= 12 ? newText : currentTranscript.slice(-900);
       
-      // Use a fast 6-second cooldown for Detect mode to keep interaction seamless
-      const cooldownMs = 6000;
+      // Use a 12-second cooldown for Detect mode to prevent spamming during long questions
+      const cooldownMs = 12000;
 
       if (Date.now() - lastQuestionAnalyzeAtRef.current < cooldownMs) return;
       
@@ -321,7 +321,7 @@ function App() {
       lastQuestionAnalyzeAtRef.current = Date.now();
       lastAnalyzedTranscriptRef.current = currentTranscript;
       void analyze(currentTranscript, modeRef.current, "auto", screenContextRef.current);
-    }, 3000);
+    }, 5000);
 
     return () => window.clearTimeout(timeout);
   }, [transcript, questionDetect, settings.autoAnalyzeIntervalSeconds]);
