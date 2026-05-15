@@ -1318,6 +1318,25 @@ ${answer}`;
                 onChange={(event) => setDraftSettings({ ...draftSettings, geminiModel: event.target.value })}
               />
             </label>
+            <label>
+              Vertex AI Location
+              <input
+                value={draftSettings.vertexLocation || "us-central1"}
+                onChange={(event) => setDraftSettings({ ...draftSettings, vertexLocation: event.target.value })}
+                placeholder="us-central1"
+              />
+            </label>
+            <label>
+              Vertex AI Credentials JSON
+              <textarea
+                className="keyPoolInput"
+                value={draftSettings.vertexCredentialsJson || ""}
+                onChange={(event) =>
+                  setDraftSettings({ ...draftSettings, vertexCredentialsJson: event.target.value })
+                }
+                placeholder={'{\n  "type": "service_account",\n  "project_id": "...",\n...'}
+              />
+            </label>
             <label className="checkboxRow">
               <input
                 type="checkbox"

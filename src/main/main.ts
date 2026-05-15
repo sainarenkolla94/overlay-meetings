@@ -45,7 +45,9 @@ const defaultSettings: AppSettings = {
   hideHotkey: "CommandOrControl+Shift+H",
   autoAnalyzeIntervalSeconds: 20,
   captureSourceId: "",
-  captureMode: "screen"
+  captureMode: "screen",
+  vertexLocation: "us-central1",
+  vertexCredentialsJson: ""
 };
 
 let cachedSettings: AppSettings = { ...defaultSettings };
@@ -727,11 +729,6 @@ ${JSON.stringify(data, null, 2).slice(0, 1200)}`;
 }
 
 async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string, ocrText = "") {
-  const keys = parseKeyPool(settings.geminiApiKey, settings.geminiApiKeys);
-  if (!keys.length) {
-    return "Add your Gemini API key in Settings, then press Analyze again.";
-  }
-
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   const parts: Array<Record<string, unknown>> = [
     {
@@ -756,45 +753,84 @@ Before answering, silently read all accumulated screen context plus the latest s
 
   let response: Response | undefined;
   let lastError = "";
-  for (let attempt = 0; attempt < keys.length; attempt += 1) {
-    const apiKey = getNextKey("gemini", keys);
-    if (!apiKey) break;
-    response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.geminiModel)}:streamGenerateContent?alt=sse`,
-      {
+
+  if (settings.vertexCredentialsJson && settings.vertexLocation) {
+    try {
+      const { GoogleAuth } = require("google-auth-library");
+      const credentials = JSON.parse(settings.vertexCredentialsJson);
+      const auth = new GoogleAuth({
+        credentials,
+        scopes: ["https://www.googleapis.com/auth/cloud-platform"]
+      });
+      const client = await auth.getClient();
+      const tokenResponse = await client.getAccessToken();
+      
+      const endpoint = `https://${settings.vertexLocation}-aiplatform.googleapis.com/v1/projects/${credentials.project_id}/locations/${settings.vertexLocation}/publishers/google/models/${encodeURIComponent(settings.geminiModel)}:streamGenerateContent?alt=sse`;
+      
+      response = await fetch(endpoint, {
         method: "POST",
         headers: {
-          "x-goog-api-key": apiKey,
+          "Authorization": `Bearer ${tokenResponse.token}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts
-            }
-          ],
+          contents: [{ role: "user", parts }],
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 4096,
-            thinkingConfig: {
-              thinkingBudget: 0
-            }
+            maxOutputTokens: 4096
           }
         })
+      });
+      if (!response.ok) {
+        lastError = `${response.status} ${await response.text()}`;
+        response = undefined;
       }
-    );
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
+    }
+  } else {
+    const keys = parseKeyPool(settings.geminiApiKey, settings.geminiApiKeys);
+    if (!keys.length) {
+      return "Add your Gemini API key or Vertex AI Credentials in Settings, then press Analyze again.";
+    }
 
-    if (response.ok) break;
-    const text = await response.text();
-    lastError = `${response.status} ${text}`;
-    if (response.status === 429 || /quota|rate/i.test(text)) {
-      coolDownKey(apiKey);
+    for (let attempt = 0; attempt < keys.length; attempt += 1) {
+      const apiKey = getNextKey("gemini", keys);
+      if (!apiKey) break;
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.geminiModel)}:streamGenerateContent?alt=sse`,
+        {
+          method: "POST",
+          headers: {
+            "x-goog-api-key": apiKey,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts
+              }
+            ],
+            generationConfig: {
+              temperature: 0.3,
+              maxOutputTokens: 4096
+            }
+          })
+        }
+      );
+
+      if (response.ok) break;
+      const text = await response.text();
+      lastError = `${response.status} ${text}`;
+      if (response.status === 429 || /quota|rate/i.test(text)) {
+        coolDownKey(apiKey);
+        response = undefined;
+        continue;
+      }
       response = undefined;
       continue;
     }
-    response = undefined;
-    continue;
   }
 
   if (!response?.ok || !response.body) {
