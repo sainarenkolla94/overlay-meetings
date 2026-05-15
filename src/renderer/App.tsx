@@ -695,6 +695,10 @@ ${answer}`;
     if (status === "listening") {
       recognitionRef.current?.stop();
       recognitionRef.current = null;
+      if (deepgramMicSocketRef.current) {
+        deepgramMicSocketRef.current.close();
+        deepgramMicSocketRef.current = null;
+      }
       setStatus("idle");
       return;
     }
@@ -952,6 +956,10 @@ ${answer}`;
     systemAudioRecorderRef.current = null;
     systemAudioStreamRef.current?.getTracks().forEach((track) => track.stop());
     systemAudioStreamRef.current = null;
+    if (deepgramSocketRef.current) {
+      deepgramSocketRef.current.close();
+      deepgramSocketRef.current = null;
+    }
     setSystemAudioListening(false);
     setStatus((current) => (current === "listening" ? "idle" : current));
   }
