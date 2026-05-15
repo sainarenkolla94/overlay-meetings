@@ -12,8 +12,6 @@ export type AppSettings = {
   model: string;
   openRouterModel: string;
   geminiModel: string;
-  vertexLocation: string;
-  vertexCredentialsJson: string;
   sendScreenshotToOpenRouter: boolean;
   sendScreenshotToGemini: boolean;
   transcriptionModel: string;
