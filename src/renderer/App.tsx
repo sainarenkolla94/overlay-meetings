@@ -320,7 +320,10 @@ function App() {
       setLastDetectionStatus(explainDetection(candidateText, modeRef.current));
       lastQuestionAnalyzeAtRef.current = Date.now();
       lastAnalyzedTranscriptRef.current = currentTranscript;
-      void analyze(currentTranscript, modeRef.current, "auto", screenContextRef.current);
+      void analyze(currentTranscript, modeRef.current, "auto", "", {
+        useScreenshot: false,
+        responseStyle: "spoken"
+      });
     }, 5000);
 
     return () => window.clearTimeout(timeout);
