@@ -35,7 +35,7 @@ const defaultSettings: AppSettings = {
   groqApiKeys: "",
   model: "gpt-4.1-mini",
   openRouterModel: "google/gemma-4-26b-a4b-it:free",
-  geminiModel: "gemini-1.5-flash-latest",
+  geminiModel: "gemini-2.5-flash",
   sendScreenshotToOpenRouter: true,
   sendScreenshotToGemini: true,
   transcriptionModel: "gpt-4o-mini-transcribe",
@@ -735,8 +735,8 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
 
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   
-  // Use standard fast model for spoken responses, powerful model for screenshot analysis
-  const modelToUse = input.responseStyle === "spoken" ? "gemini-1.5-flash-latest" : settings.geminiModel;
+  // Use ultra-fast Lite model for spoken responses
+  const modelToUse = input.responseStyle === "spoken" ? "gemini-flash-lite-latest" : (settings.geminiModel || "gemini-2.5-flash");
   
   const promptSuffix = input.responseStyle === "spoken"
     ? ""
@@ -764,8 +764,12 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
   for (let attempt = 0; attempt < keys.length; attempt += 1) {
     const apiKey = getNextKey("gemini", keys);
     if (!apiKey) break;
+    
+    // Switch to v1 (stable) for better compatibility
+    const apiVersion = modelToUse.includes("2.0") || modelToUse.includes("exp") ? "v1beta" : "v1";
+    
     response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelToUse)}:streamGenerateContent?alt=sse`,
+      `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(modelToUse)}:streamGenerateContent?alt=sse`,
       {
         method: "POST",
         headers: {
