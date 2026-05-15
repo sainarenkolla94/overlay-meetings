@@ -765,8 +765,8 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
     const apiKey = getNextKey("gemini", keys);
     if (!apiKey) break;
     
-    // Switch to v1 (stable) for better compatibility
-    const apiVersion = modelToUse.includes("2.0") || modelToUse.includes("exp") ? "v1beta" : "v1";
+    // Use v1beta for all futuristic models
+    const apiVersion = "v1beta";
     
     response = await fetch(
       `https://generativelanguage.googleapis.com/${apiVersion}/models/${encodeURIComponent(modelToUse)}:streamGenerateContent?alt=sse`,
