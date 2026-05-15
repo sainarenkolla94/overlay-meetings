@@ -274,7 +274,7 @@ button:active:not(:disabled) {
 .stealthMeta {
   height: 28px;
   display: grid;
-  grid-template-columns: 8px 1fr 58px 44px;
+  grid-template-columns: 8px 1fr 58px 62px 44px;
   align-items: center;
   gap: 7px;
   padding: 0 9px;
