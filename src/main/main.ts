@@ -728,6 +728,10 @@ Raw response:
 ${JSON.stringify(data, null, 2).slice(0, 1200)}`;
 }
 
+let cachedVertexAuthClient: any = null;
+let lastVertexJson = "";
+let vertexProjectId = "";
+
 async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshotDataUrl?: string, ocrText = "") {
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   const parts: Array<Record<string, unknown>> = [
@@ -756,16 +760,21 @@ Before answering, silently read all accumulated screen context plus the latest s
 
   if (settings.vertexCredentialsJson && settings.vertexLocation) {
     try {
-      const { GoogleAuth } = require("google-auth-library");
-      const credentials = JSON.parse(settings.vertexCredentialsJson);
-      const auth = new GoogleAuth({
-        credentials,
-        scopes: ["https://www.googleapis.com/auth/cloud-platform"]
-      });
-      const client = await auth.getClient();
+      if (!cachedVertexAuthClient || lastVertexJson !== settings.vertexCredentialsJson) {
+        const { GoogleAuth } = require("google-auth-library");
+        const credentials = JSON.parse(settings.vertexCredentialsJson);
+        vertexProjectId = credentials.project_id;
+        cachedVertexAuthClient = new GoogleAuth({
+          credentials,
+          scopes: ["https://www.googleapis.com/auth/cloud-platform"]
+        });
+        lastVertexJson = settings.vertexCredentialsJson;
+      }
+      
+      const client = await cachedVertexAuthClient.getClient();
       const tokenResponse = await client.getAccessToken();
       
-      const endpoint = `https://${settings.vertexLocation}-aiplatform.googleapis.com/v1/projects/${credentials.project_id}/locations/${settings.vertexLocation}/publishers/google/models/${encodeURIComponent(settings.geminiModel)}:streamGenerateContent?alt=sse`;
+      const endpoint = `https://${settings.vertexLocation}-aiplatform.googleapis.com/v1/projects/${vertexProjectId}/locations/${settings.vertexLocation}/publishers/google/models/${encodeURIComponent(settings.geminiModel)}:streamGenerateContent?alt=sse`;
       
       response = await fetch(endpoint, {
         method: "POST",
