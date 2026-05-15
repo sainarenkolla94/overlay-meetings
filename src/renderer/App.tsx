@@ -295,15 +295,15 @@ function App() {
   useEffect(() => {
     if (!questionDetect) return undefined;
 
-    const timeout = window.setTimeout(() => {
+    const interval = window.setInterval(() => {
       const currentTranscript = transcriptRef.current.trim();
       if (!currentTranscript || analyzingRef.current) return;
 
       const lastAnalyzed = lastAnalyzedTranscriptRef.current;
       const newText = currentTranscript.slice(lastAnalyzed.length).trim();
       
-      // Must have enough new words since last analysis to contain a question
-      if (newText.length < 20) return;
+      // Must have enough new words since last analysis
+      if (newText.length < 10) return;
       
       // Use a 4-second cooldown to avoid duplicate triggers
       const cooldownMs = 4000;
@@ -328,10 +328,10 @@ function App() {
         useScreenshot: false,
         responseStyle: "spoken"
       });
-    }, 1500);
+    }, 2000);
 
-    return () => window.clearTimeout(timeout);
-  }, [transcript, questionDetect, settings.autoAnalyzeIntervalSeconds]);
+    return () => window.clearInterval(interval);
+  }, [questionDetect]);
 
   function detectModeSwitch(text: string, currentMode: Mode): Mode {
     const normalized = text.toLowerCase();
