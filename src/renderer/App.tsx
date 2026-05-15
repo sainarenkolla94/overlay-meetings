@@ -302,28 +302,26 @@ function App() {
       const lastAnalyzed = lastAnalyzedTranscriptRef.current;
       const newText = currentTranscript.slice(lastAnalyzed.length).trim();
       
-      // Must have at least some new words since last analysis
-      if (newText.length < 8) return;
-      
-      // Always use a generous window of the most recent transcript
-      // so question phrases near the boundary are never missed
-      const candidateText = currentTranscript.slice(-900);
+      // Must have enough new words since last analysis to contain a question
+      if (newText.length < 20) return;
       
       // Use a 4-second cooldown to avoid duplicate triggers
       const cooldownMs = 4000;
 
       if (Date.now() - lastQuestionAnalyzeAtRef.current < cooldownMs) return;
       
-      // Auto-switch mode based on transcript content
-      const nextMode = detectModeSwitch(candidateText, modeRef.current);
+      // Auto-switch mode based on recent transcript window
+      const recentWindow = currentTranscript.slice(-900);
+      const nextMode = detectModeSwitch(recentWindow, modeRef.current);
       if (nextMode !== modeRef.current) {
         setMode(nextMode);
         modeRef.current = nextMode;
       }
 
-      if (!isLikelyQuestion(candidateText, modeRef.current)) return;
+      // Only check NEW text for question phrases to avoid re-triggering on old questions
+      if (!isLikelyQuestion(newText, modeRef.current)) return;
 
-      setLastDetectionStatus(explainDetection(candidateText, modeRef.current));
+      setLastDetectionStatus(explainDetection(newText, modeRef.current));
       lastQuestionAnalyzeAtRef.current = Date.now();
       lastAnalyzedTranscriptRef.current = currentTranscript;
       void analyze(currentTranscript, modeRef.current, "auto", "", {
