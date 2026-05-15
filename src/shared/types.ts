@@ -2,13 +2,14 @@ export type AssistantStatus = "idle" | "listening" | "analyzing" | "capturing" |
 
 export type AppSettings = {
   provider: "openai" | "openrouter" | "gemini";
-  transcriptionProvider: "openai" | "groq";
+  transcriptionProvider: "openai" | "groq" | "deepgram";
   openAiApiKey: string;
   openRouterApiKey: string;
   geminiApiKey: string;
   geminiApiKeys: string;
   groqApiKey: string;
   groqApiKeys: string;
+  deepgramApiKey: string;
   model: string;
   openRouterModel: string;
   geminiModel: string;

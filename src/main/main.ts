@@ -40,6 +40,7 @@ const defaultSettings: AppSettings = {
   sendScreenshotToGemini: true,
   transcriptionModel: "gpt-4o-mini-transcribe",
   groqTranscriptionModel: "whisper-large-v3-turbo",
+  deepgramApiKey: "",
   preferredLanguage: "Python",
   triggerHotkey: "CommandOrControl+Shift+Space",
   hideHotkey: "CommandOrControl+Shift+H",
@@ -733,14 +734,17 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
   }
 
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
+  
+  // Use fast model for spoken/audio-only responses, powerful model for screenshot analysis
+  const modelToUse = input.responseStyle === "spoken" ? "gemini-2.0-flash" : settings.geminiModel;
+  
+  const promptSuffix = input.responseStyle === "spoken"
+    ? ""
+    : `\n\nProvider note: Gemini mode is enabled. A screenshot image part is attached when screenshot sending is enabled. If the transcript is empty, inspect the screenshot and answer from the visible screen content.\nScreenshot status: ${settings.sendScreenshotToGemini && preparedScreenshot ? `attached as ${preparedScreenshot.mimeType}, ${preparedScreenshot.width}x${preparedScreenshot.height}` : "not attached"}.\n\nBefore answering, silently read all accumulated screen context plus the latest screenshot. If you can see a multiple-choice question, answer with the option only and a short reason. If you can see a non-MCQ coding problem, start with \"Detected:\" followed by a 1-line problem summary, then give the concise overlay answer. Do not ask for the problem statement unless the screenshot/context is blank, unreadable, or unrelated.`;
+
   const parts: Array<Record<string, unknown>> = [
     {
-      text: `${buildAssistantPrompt(input, settings, ocrText)}
-
-Provider note: Gemini mode is enabled. A screenshot image part is attached when screenshot sending is enabled. If the transcript is empty, inspect the screenshot and answer from the visible screen content.
-Screenshot status: ${settings.sendScreenshotToGemini && preparedScreenshot ? `attached as ${preparedScreenshot.mimeType}, ${preparedScreenshot.width}x${preparedScreenshot.height}` : "not attached"}.
-
-Before answering, silently read all accumulated screen context plus the latest screenshot. If you can see a multiple-choice question, answer with the option only and a short reason. If you can see a non-MCQ coding problem, start with "Detected:" followed by a 1-line problem summary, then give the concise overlay answer. Do not ask for the problem statement unless the screenshot/context is blank, unreadable, or unrelated.`
+      text: `${buildAssistantPrompt(input, settings, ocrText)}${promptSuffix}`
     }
   ];
 
@@ -761,7 +765,7 @@ Before answering, silently read all accumulated screen context plus the latest s
     const apiKey = getNextKey("gemini", keys);
     if (!apiKey) break;
     response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(settings.geminiModel)}:streamGenerateContent?alt=sse`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelToUse)}:streamGenerateContent?alt=sse`,
       {
         method: "POST",
         headers: {
@@ -777,10 +781,7 @@ Before answering, silently read all accumulated screen context plus the latest s
           ],
           generationConfig: {
             temperature: 0.3,
-            maxOutputTokens: 4096,
-            thinkingConfig: {
-              thinkingBudget: 0
-            }
+            maxOutputTokens: 4096
           }
         })
       }

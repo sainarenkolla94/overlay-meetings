@@ -67,7 +67,7 @@ const defaultSettings: AppSettings = {
 type Mode = "coding" | "behavioral" | "meeting";
 type ViewMode = "full" | "glass" | "stealth" | "focus";
 type ProviderPreset = "gemini-groq" | "openrouter-groq" | "openai-only";
-const audioSegmentMs = 5000;
+const audioSegmentMs = 3000;
 type SuggestionItem = {
   id: number;
   answer: string;
@@ -159,6 +159,8 @@ function App() {
   const modeRef = useRef(mode);
   const clickThroughRef = useRef(clickThrough);
   const compactRef = useRef(compact);
+  const deepgramSocketRef = useRef<WebSocket | null>(null);
+  const deepgramMicSocketRef = useRef<WebSocket | null>(null);
   const resizeLockedRef = useRef(resizeLocked);
   const launcherModeRef = useRef(launcherMode);
   const autoAnalyzeRef = useRef(autoAnalyze);
@@ -166,6 +168,7 @@ function App() {
   const lastQuestionAnalyzeAtRef = useRef(0);
   const lastAnalyzedTranscriptRef = useRef("");
   const analyzingRef = useRef(false);
+  const lastTranscriptUpdateAtRef = useRef(Date.now());
   const contextBatchAnalyzedRef = useRef(false);
   const contextCaptureCountRef = useRef(0);
 
@@ -302,9 +305,17 @@ function App() {
       const lastAnalyzed = lastAnalyzedTranscriptRef.current;
       const newText = currentTranscript.slice(lastAnalyzed.length).trim();
       
-      // Need a full sentence worth of new speech (~6-8 words)
-      if (newText.length < 40) return;
+      // Need some new words since last analysis (~4-5 words)
+      if (newText.length < 25) return;
+
+      // Filter out Groq/Deepgram phantom transcriptions (silence artifacts)
+      const junk = /^(thank you\.?|thanks\.?|you\.?|bye\.?|okay\.?|yeah\.?|hmm\.?|uh huh\.?|right\.?|sure\.?|\s)+$/i;
+      if (junk.test(newText)) return;
       
+      // Wait for a brief silence (800ms) after the last word to ensure the question is finished
+      const msSinceLastWord = Date.now() - lastTranscriptUpdateAtRef.current;
+      if (msSinceLastWord < 800) return;
+
       // 8-second cooldown between triggers
       const cooldownMs = 8000;
       if (Date.now() - lastQuestionAnalyzeAtRef.current < cooldownMs) return;
@@ -328,7 +339,7 @@ function App() {
         useScreenshot: false,
         responseStyle: "spoken"
       });
-    }, 2000);
+    }, 400); // Check much more frequently (every 400ms) for instant reaction
 
     return () => window.clearInterval(interval);
   }, [questionDetect]);
@@ -727,11 +738,54 @@ ${answer}`;
     return window.btoa(binary);
   }
 
-  function appendTranscript(source: "system" | "mic", text: string) {
+  function appendTranscript(source: "system" | "mic", text: string, isInterim = false) {
     const trimmed = text.trim();
     if (!trimmed) return;
     const label = source === "system" ? "Interviewer/System" : "Mic";
+    if (isInterim) {
+      // For Deepgram interim results, we might want to handle them differently (e.g. temporary line)
+      // For now, let's just append or ignore if it's too noisy
+      return;
+    }
     setTranscript((previous) => `${previous}\n[${label}] ${trimmed}`.trim());
+    lastTranscriptUpdateAtRef.current = Date.now();
+  }
+
+  function connectDeepgram(source: "system" | "mic") {
+    if (!settings.deepgramApiKey) return null;
+    const socketRef = source === "system" ? deepgramSocketRef : deepgramMicSocketRef;
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) return socketRef.current;
+
+    const url = "wss://api.deepgram.com/v1/listen?model=nova-2&punctuate=true&interim_results=false&smart_format=true";
+    const socket = new WebSocket(url, ["token", settings.deepgramApiKey]);
+
+    socket.onopen = () => {
+      console.log(`Deepgram ${source} socket opened`);
+    };
+
+    socket.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        const transcriptText = data.channel?.alternatives?.[0]?.transcript;
+        if (transcriptText && data.is_final) {
+          appendTranscript(source, transcriptText);
+        }
+      } catch (e) {
+        console.error("Deepgram error", e);
+      }
+    };
+
+    socket.onclose = () => {
+      console.log(`Deepgram ${source} socket closed`);
+      socketRef.current = null;
+    };
+
+    socket.onerror = (err) => {
+      console.error(`Deepgram ${source} socket error`, err);
+    };
+
+    socketRef.current = socket;
+    return socket;
   }
 
   async function transcribeAudioChunk(blob: Blob, source: "system" | "mic") {
@@ -769,22 +823,38 @@ ${answer}`;
 
     for (const options of getSupportedAudioRecorderOptions()) {
       try {
+        const isDeepgram = settings.transcriptionProvider === "deepgram";
         const recorder = options ? new MediaRecorder(stream, options) : new MediaRecorder(stream);
         const chunks: Blob[] = [];
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            chunks.push(event.data);
-          }
-        };
+
+        if (isDeepgram) {
+          const socket = connectDeepgram(source);
+          recorder.ondataavailable = (event) => {
+            if (event.data.size > 0 && socket && socket.readyState === WebSocket.OPEN) {
+              socket.send(event.data);
+            }
+          };
+        } else {
+          recorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+              chunks.push(event.data);
+            }
+          };
+        }
+
         recorder.onstop = () => {
           if (source === "system" && systemAudioSegmentTimerRef.current) {
             window.clearTimeout(systemAudioSegmentTimerRef.current);
             systemAudioSegmentTimerRef.current = null;
           }
 
-          if (chunks.length) {
+          if (!isDeepgram && chunks.length) {
             const mimeType = recorder.mimeType || chunks[0]?.type || "audio/webm";
             void transcribeAudioChunk(new Blob(chunks, { type: mimeType }), source);
+          }
+
+          if (isDeepgram) {
+            // No need to restart recorder for Deepgram, it just streams
           }
 
           if (source === "system" && systemAudioListeningRef.current && systemAudioStreamRef.current) {
@@ -803,8 +873,14 @@ ${answer}`;
           setError("System audio recorder failed.");
           stopSystemAudio();
         };
-        recorder.start();
-        if (source === "system") {
+
+        if (isDeepgram) {
+          recorder.start(250); // Send small chunks every 250ms for low latency
+        } else {
+          recorder.start();
+        }
+
+        if (source === "system" && !isDeepgram) {
           systemAudioSegmentTimerRef.current = window.setTimeout(() => {
             if (recorder.state !== "inactive") recorder.stop();
           }, audioSegmentMs);
@@ -1045,6 +1121,7 @@ ${answer}`;
             <span className={status === "ready" ? "dot ok" : "dot"} />
             <span>{status === "analyzing" ? "Analyzing" : status === "capturing" ? "Capturing" : mode}</span>
             <button title="Analyze" onClick={() => analyze(transcriptRef.current, modeRef.current, "manual", screenContextRef.current)} disabled={status === "analyzing" || status === "capturing"}>Analyze</button>
+            <button title="Audio Q" onClick={analyzeTranscriptOnly} disabled={status === "analyzing" || status === "capturing"}>Audio Q</button>
             <button title="Switch to full view" onClick={() => setModeView("full")}>Full</button>
           </div>
           <pre>{status === "analyzing" ? "Reading screen and transcript..." : status === "capturing" ? "Capturing screen context..." : answer}</pre>
@@ -1246,7 +1323,17 @@ ${answer}`;
               >
                 <option value="openai">OpenAI</option>
                 <option value="groq">Groq</option>
+                <option value="deepgram">Deepgram (Live Streaming)</option>
               </select>
+            </label>
+            <label>
+              Deepgram API key
+              <input
+                type="password"
+                value={draftSettings.deepgramApiKey || ""}
+                onChange={(event) => setDraftSettings({ ...draftSettings, deepgramApiKey: event.target.value })}
+                placeholder="dg_..."
+              />
             </label>
             <label>
               OpenAI transcription model
