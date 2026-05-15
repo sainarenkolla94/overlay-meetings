@@ -317,9 +317,13 @@ function App() {
         modeRef.current = nextMode;
       }
 
-      setLastDetectionStatus(`New speech detected (${newText.length} chars)`);
+      // Only trigger if the new speech looks like a question (not the user's own answer)
+      if (!isLikelyQuestion(newText, modeRef.current)) return;
+
+      setLastDetectionStatus(`Question detected (${newText.length} chars)`);
       lastQuestionAnalyzeAtRef.current = Date.now();
       lastAnalyzedTranscriptRef.current = currentTranscript;
+
       void analyze(currentTranscript, modeRef.current, "auto", "", {
         useScreenshot: false,
         responseStyle: "spoken"
@@ -347,55 +351,47 @@ function App() {
     if (normalized.length < 12) return false;
 
     const questionPhrases = [
+      // Punctuation
       "?",
-      "can you",
-      "could you",
-      "would you",
-      "how would",
-      "how do",
-      "how about",
-      "what is",
-      "what's",
-      "what are",
-      "why",
-      "explain",
-      "walk me through",
-      "tell me",
-      "describe",
-      "design",
-      "debug",
-      "fix",
-      "implement",
-      "write",
-      "solve",
-      "approach",
-      "complexity",
-      "edge case",
-      "test case",
-      "do you know",
-      "have you used",
-      "are you familiar",
-      "let's talk about",
-      "can we"
+      // Direct question starters
+      "can you", "could you", "would you", "will you", "shall we",
+      "how would", "how do", "how did", "how can", "how about", "how is", "how are",
+      "what is", "what's", "what are", "what do", "what did", "what would", "what was",
+      "when did", "when do", "when was", "when is",
+      "where do", "where did", "where is", "where are",
+      "which one", "which is", "which are",
+      "who is", "who are", "who was", "who did",
+      "why do", "why did", "why is", "why are", "why would",
+      "do you", "did you", "does it", "does this",
+      "have you", "has it", "had you",
+      "are you", "is there", "is it", "is this",
+      // Interview phrases
+      "explain", "walk me through", "tell me", "describe", "elaborate",
+      "give me an example", "share an example", "talk about",
+      "what experience", "your experience", "your background",
+      "let's talk about", "let's discuss", "let's move on",
+      "next question", "moving on",
+      // Behavioral
+      "time when", "time you", "situation where", "example of",
+      "challenge", "difficult", "conflict", "disagree",
+      "strength", "weakness", "proud of", "mistake",
+      // Technical/coding
+      "design", "debug", "fix", "implement", "write", "solve",
+      "approach", "complexity", "edge case", "test case",
+      "difference between", "compare", "trade-off", "tradeoff",
+      "optimize", "improve", "refactor"
     ];
 
     if (questionPhrases.some((phrase) => normalized.includes(phrase))) return true;
 
     if (currentMode === "coding") {
       return [
-        "given an array",
-        "given a string",
-        "return the",
-        "find the",
-        "leetcode",
-        "time complexity",
-        "space complexity",
-        "binary tree",
-        "linked list",
-        "hash map",
-        "dynamic programming",
-        "optimize",
-        "brute force"
+        "given an array", "given a string", "given a list",
+        "return the", "find the", "count the", "sort the",
+        "leetcode", "time complexity", "space complexity",
+        "binary tree", "linked list", "hash map", "hash table",
+        "dynamic programming", "brute force", "recursion",
+        "input", "output", "constraint"
       ].some((phrase) => normalized.includes(phrase));
     }
 
