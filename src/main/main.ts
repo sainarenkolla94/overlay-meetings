@@ -35,7 +35,7 @@ const defaultSettings: AppSettings = {
   groqApiKeys: "",
   model: "gpt-4.1-mini",
   openRouterModel: "google/gemma-4-26b-a4b-it:free",
-  geminiModel: "gemini-2.5-flash",
+  geminiModel: "gemini-1.5-flash",
   sendScreenshotToOpenRouter: true,
   sendScreenshotToGemini: true,
   transcriptionModel: "gpt-4o-mini-transcribe",
@@ -735,8 +735,8 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
 
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   
-  // Use ultra-fast 8B model for spoken responses, powerful model for screenshot analysis
-  const modelToUse = input.responseStyle === "spoken" ? "gemini-1.5-flash-8b" : settings.geminiModel;
+  // Use standard fast model for spoken responses, powerful model for screenshot analysis
+  const modelToUse = input.responseStyle === "spoken" ? "gemini-1.5-flash" : settings.geminiModel;
   
   const promptSuffix = input.responseStyle === "spoken"
     ? ""
