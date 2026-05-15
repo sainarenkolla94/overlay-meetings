@@ -303,8 +303,8 @@ function App() {
       const newText = currentTranscript.slice(lastAnalyzed.length).trim();
       const candidateText = newText.length >= 12 ? newText : currentTranscript.slice(-900);
       
-      // Use a 12-second cooldown for Detect mode to prevent spamming during long questions
-      const cooldownMs = 12000;
+      // Use a 4-second cooldown to avoid duplicate triggers
+      const cooldownMs = 4000;
 
       if (Date.now() - lastQuestionAnalyzeAtRef.current < cooldownMs) return;
       
@@ -324,7 +324,7 @@ function App() {
         useScreenshot: false,
         responseStyle: "spoken"
       });
-    }, 5000);
+    }, 1500);
 
     return () => window.clearTimeout(timeout);
   }, [transcript, questionDetect, settings.autoAnalyzeIntervalSeconds]);
