@@ -735,8 +735,8 @@ async function callGemini(settings: AppSettings, input: AnalyzeInput, screenshot
 
   const preparedScreenshot = prepareScreenshotForProvider(screenshotDataUrl);
   
-  // Use fast model for spoken/audio-only responses, powerful model for screenshot analysis
-  const modelToUse = input.responseStyle === "spoken" ? "gemini-2.0-flash" : settings.geminiModel;
+  // Use ultra-fast 8B model for spoken responses, powerful model for screenshot analysis
+  const modelToUse = input.responseStyle === "spoken" ? "gemini-1.5-flash-8b" : settings.geminiModel;
   
   const promptSuffix = input.responseStyle === "spoken"
     ? ""

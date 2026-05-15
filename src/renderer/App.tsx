@@ -253,8 +253,14 @@ function App() {
     });
 
     const removeStream = overlayApi.onAnalyzeStream((chunk) => {
+      const fillers = ["Thinking...", "One moment...", "Analyzing...", "Drafting response...", "Checking notes...", "Let me think...", "Preparing answer..."];
       setStatus("ready");
-      setAnswer((prev) => prev + chunk);
+      setAnswer((prev) => {
+        for (const f of fillers) {
+          if (prev.endsWith(f)) return prev.replace(f, chunk);
+        }
+        return prev + chunk;
+      });
     });
 
     const interval = window.setInterval(refreshTeamsStatus, 5000);
@@ -312,9 +318,12 @@ function App() {
       const junk = /^(thank you\.?|thanks\.?|you\.?|bye\.?|okay\.?|yeah\.?|hmm\.?|uh huh\.?|right\.?|sure\.?|\s)+$/i;
       if (junk.test(newText)) return;
       
-      // Wait for a brief silence (800ms) after the last word to ensure the question is finished
+      // Instant trigger if the text ends with a question mark (Deepgram smart formatting)
+      const isCompleteQuestion = newText.endsWith("?");
+      
+      // Wait for a brief silence (500ms) after the last word, OR trigger immediately if it's a complete question
       const msSinceLastWord = Date.now() - lastTranscriptUpdateAtRef.current;
-      if (msSinceLastWord < 800) return;
+      if (!isCompleteQuestion && msSinceLastWord < 500) return;
 
       // 8-second cooldown between triggers
       const cooldownMs = 8000;
@@ -337,9 +346,10 @@ function App() {
 
       void analyze(currentTranscript, modeRef.current, "auto", "", {
         useScreenshot: false,
-        responseStyle: "spoken"
+        responseStyle: "spoken",
+        questionSnippet: newText
       });
-    }, 400); // Check much more frequently (every 400ms) for instant reaction
+    }, 200); // Super high frequency (200ms) for instant detection
 
     return () => window.clearInterval(interval);
   }, [questionDetect]);
@@ -604,7 +614,7 @@ function App() {
     modeForRequest = mode,
     source: "manual" | "auto" | "continue" = "manual",
     screenContextForRequest = screenContext,
-    options: { useScreenshot?: boolean; responseStyle?: "overlay" | "spoken" } = {}
+    options: { useScreenshot?: boolean; responseStyle?: "overlay" | "spoken"; questionSnippet?: string } = {}
   ) {
     if (analyzingRef.current) return;
     analyzingRef.current = true;
@@ -617,8 +627,23 @@ function App() {
       contextBatchAnalyzedRef.current = false;
       contextCaptureCountRef.current = 0;
     }
+    const fillers = [
+      "Thinking...",
+      "One moment...",
+      "Analyzing...",
+      "Drafting response...",
+      "Checking notes...",
+      "Let me think...",
+      "Preparing answer..."
+    ];
+    const randomFiller = fillers[Math.floor(Math.random() * fillers.length)];
+
+    const displayPrefix = options.questionSnippet 
+      ? `Q: ${options.questionSnippet}\n${"-".repeat(Math.min(options.questionSnippet.length + 3, 40))}\n`
+      : "";
+
     setStatus("analyzing");
-    setAnswer("");
+    setAnswer(`${displayPrefix}${randomFiller}`);
     setError("");
     try {
       // Prevent context overload by truncating long transcripts
