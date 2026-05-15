@@ -771,15 +771,14 @@ Before answering, silently read all accumulated screen context plus the latest s
         lastVertexJson = settings.vertexCredentialsJson;
       }
       
-      const client = await cachedVertexAuthClient.getClient();
-      const tokenResponse = await client.getAccessToken();
+      const token = await cachedVertexAuthClient.getAccessToken();
       
       const endpoint = `https://${settings.vertexLocation}-aiplatform.googleapis.com/v1/projects/${vertexProjectId}/locations/${settings.vertexLocation}/publishers/google/models/${encodeURIComponent(settings.geminiModel)}:streamGenerateContent?alt=sse`;
       
       response = await fetch(endpoint, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${tokenResponse.token}`,
+          "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
