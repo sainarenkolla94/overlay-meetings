@@ -805,13 +805,15 @@ Before answering, silently read all accumulated screen context plus the latest s
   let fullText = "";
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf8");
+  let buffer = "";
 
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n");
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
       
       for (const line of lines) {
         if (line.startsWith("data: ")) {
@@ -900,7 +902,8 @@ ipcMain.handle("assistant:analyze", async (_event, input: AnalyzeInput): Promise
   const settings = cachedSettings;
   const shouldUseScreenshot = input.useScreenshot !== false;
   const [screenshotDataUrl, teams] = await Promise.all([shouldUseScreenshot ? capturePrimaryScreen() : undefined, getTeamsStatus()]);
-  const ocrText = await extractOcrText(screenshotDataUrl);
+  // Skip expensive OCR for Gemini — it reads images natively via inline_data
+  const ocrText = settings.provider === "gemini" ? "" : await extractOcrText(screenshotDataUrl);
   const sentImageToProvider =
     Boolean(screenshotDataUrl) &&
     (settings.provider === "openai" ||
